@@ -265,11 +265,16 @@ body {
   display: block;
 }
 
+.zoom-wrap {
+  position: relative;
+  display: inline-block;
+  transform-origin: 0 0;
+}
+
 .fog-canvas {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: 0;
+  left: 0;
   pointer-events: auto;
   opacity: 0.6;
   z-index: 1;
@@ -282,9 +287,8 @@ body {
 
 .token-canvas {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: 0;
+  left: 0;
   pointer-events: auto;
   z-index: 2;
 }

@@ -2,11 +2,89 @@
 (function () {
   "use strict";
 
+  // --- Zoom/Pan Controller ---
+  function createZoomController(canvasWrap) {
+    var zoomWrap = canvasWrap.querySelector(".zoom-wrap");
+    if (!zoomWrap) return;
+
+    var scale = 1;
+    var panX = 0;
+    var panY = 0;
+    var minScale = 1;
+    var maxScale = 5;
+    var panning = false;
+    var panStartX = 0;
+    var panStartY = 0;
+    var lastPanX = 0;
+    var lastPanY = 0;
+
+    function applyTransform() {
+      zoomWrap.style.transform = "scale(" + scale + ") translate(" + panX + "px, " + panY + "px)";
+    }
+
+    function clamp(val, lo, hi) {
+      return Math.max(lo, Math.min(hi, val));
+    }
+
+    // Wheel to zoom toward cursor
+    canvasWrap.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      var oldScale = scale;
+      var factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+      scale = clamp(scale * factor, minScale, maxScale);
+
+      var wrapRect = canvasWrap.getBoundingClientRect();
+      var cx = e.clientX - wrapRect.left;
+      var cy = e.clientY - wrapRect.top;
+
+      panX = cx / scale - cx / oldScale + panX;
+      panY = cy / scale - cy / oldScale + panY;
+
+      applyTransform();
+    }, { passive: false });
+
+    // Middle-mouse drag to pan
+    canvasWrap.addEventListener("mousedown", function (e) {
+      if (e.button === 1) {
+        e.preventDefault();
+        panning = true;
+        panStartX = e.clientX;
+        panStartY = e.clientY;
+        lastPanX = panX;
+        lastPanY = panY;
+      }
+    });
+
+    window.addEventListener("mousemove", function (e) {
+      if (!panning) return;
+      panX = lastPanX + (e.clientX - panStartX) / scale;
+      panY = lastPanY + (e.clientY - panStartY) / scale;
+      applyTransform();
+    });
+
+    window.addEventListener("mouseup", function (e) {
+      if (e.button === 1) panning = false;
+    });
+
+    // Double-click to reset
+    canvasWrap.addEventListener("dblclick", function () {
+      scale = 1;
+      panX = 0;
+      panY = 0;
+      applyTransform();
+    });
+
+    // Prevent context menu on middle click
+    canvasWrap.addEventListener("auxclick", function (e) {
+      if (e.button === 1) e.preventDefault();
+    });
+  }
+
   // --- Token Layer (shared between DM and Player) ---
   function createTokenLayer(container, mapImg, mapId, isDM) {
     var canvas = document.createElement("canvas");
     canvas.className = "token-canvas";
-    container.querySelector(".canvas-wrap").appendChild(canvas);
+    container.querySelector(".zoom-wrap").appendChild(canvas);
     var ctx = canvas.getContext("2d");
     var tokens = [];
     var dragging = null;
@@ -83,6 +161,7 @@
 
     // --- Mouse handlers (work for both DM token mode and player token dragging) ---
     canvas.addEventListener("mousedown", function (e) {
+      if (e.button !== 0) return;
       var pos = coords(e);
       var token = hitTest(pos);
       if (token && (isDM || token.moveable)) {
@@ -164,7 +243,7 @@
 
     var canvas = document.createElement("canvas");
     canvas.className = "fog-canvas";
-    container.querySelector(".canvas-wrap").appendChild(canvas);
+    container.querySelector(".zoom-wrap").appendChild(canvas);
     var ctx = canvas.getContext("2d");
 
     var tool = "reveal";
@@ -223,6 +302,7 @@
     }
 
     canvas.addEventListener("mousedown", function (e) {
+      if (e.button !== 0) return;
       drawing = true;
       var pos = canvasCoords(e);
       if (shape === "brush") {
@@ -279,6 +359,9 @@
 
     // Init token layer on top of fog
     var tokenCtrl = createTokenLayer(container, mapImg, mapId, true);
+
+    // Zoom/pan
+    createZoomController(container.querySelector(".canvas-wrap"));
 
     // --- Toolbar event handling ---
     var fogTools = container.querySelector(".fog-tools");
@@ -348,7 +431,7 @@
 
     var canvas = document.createElement("canvas");
     canvas.className = "fog-canvas";
-    container.querySelector(".canvas-wrap").appendChild(canvas);
+    container.querySelector(".zoom-wrap").appendChild(canvas);
     var ctx = canvas.getContext("2d");
 
     function resize() {
@@ -378,6 +461,9 @@
 
     // Token layer on top (players can always interact with moveable tokens)
     var tokenCtrl = createTokenLayer(container, mapImg, mapId, false);
+
+    // Zoom/pan
+    createZoomController(container.querySelector(".canvas-wrap"));
 
     return {
       refresh: loadFog,

@@ -75,7 +75,9 @@ templ MapAreaImage(m *store.Map) {
 			<button data-fog-reveal-all>Reveal All</button>
 		</div>
 		<div class="canvas-wrap">
-			<img src={ fmt.Sprintf("/dm/maps/%s/image", m.ID) } alt={ m.Title } class="map-image"/>
+			<div class="zoom-wrap">
+				<img src={ fmt.Sprintf("/dm/maps/%s/image", m.ID) } alt={ m.Title } class="map-image"/>
+			</div>
 		</div>
 		<script>
 			(function() {
@@ -95,7 +97,9 @@ templ PlayerMapEmpty() {
 templ PlayerMapImage(m *store.Map) {
 	<div id="player-map-view" class="canvas-container" data-map-id={ m.ID }>
 		<div class="canvas-wrap">
-			<img src={ fmt.Sprintf("/maps/%s/image", m.ID) } alt={ m.Title } class="map-image"/>
+			<div class="zoom-wrap">
+				<img src={ fmt.Sprintf("/maps/%s/image", m.ID) } alt={ m.Title } class="map-image"/>
+			</div>
 		</div>
 		<script>
 			(function() {
