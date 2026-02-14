@@ -1,4 +1,4 @@
-.PHONY: generate build dev build-arm64 build-armv7 build-all clean
+.PHONY: generate build dev test build-arm64 build-armv7 build-all clean
 
 generate:
 	templ generate
@@ -8,6 +8,9 @@ build: generate
 
 dev: generate
 	go run . --data-dir=./data --dm-password=admin
+
+test:
+	CGO_ENABLED=0 go test ./...
 
 build-arm64: generate
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o dungeon-revealer-linux-arm64 .
