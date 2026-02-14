@@ -1,0 +1,105 @@
+package templates
+
+import (
+	"fmt"
+	"github.com/matt/dungeon-revealer-go/internal/store"
+)
+
+templ MapList(maps []*store.Map, activeID string) {
+	<div id="map-list" hx-swap-oob="true">
+		<form
+			hx-post="/dm/maps/upload"
+			hx-target="#map-list"
+			hx-encoding="multipart/form-data"
+			class="upload-form"
+		>
+			<input type="file" name="map" accept="image/*" required/>
+			<input type="text" name="title" placeholder="Map title (optional)"/>
+			<button type="submit">Upload</button>
+		</form>
+		if len(maps) == 0 {
+			<p class="muted">No maps uploaded yet.</p>
+		} else {
+			<ul class="map-items">
+				for _, m := range maps {
+					<li class={ "map-item", templ.KV("active", m.ID == activeID) }>
+						<button
+							hx-post={ fmt.Sprintf("/dm/maps/%s/activate", m.ID) }
+							hx-target="#map-list"
+							class="map-select-btn"
+						>
+							{ m.Title }
+						</button>
+						<button
+							hx-delete={ fmt.Sprintf("/dm/maps/%s", m.ID) }
+							hx-target="#map-list"
+							hx-confirm="Delete this map?"
+							class="map-delete-btn"
+						>
+							&times;
+						</button>
+					</li>
+				}
+			</ul>
+		}
+	</div>
+}
+
+templ MapAreaEmpty() {
+	<div id="dm-map-view">
+		<p class="muted">Select or upload a map to get started.</p>
+	</div>
+}
+
+templ MapAreaImage(m *store.Map) {
+	<div id="dm-map-view" class="canvas-container" data-map-id={ m.ID }>
+		<div class="fog-toolbar">
+			<button data-fog-tool="reveal" class="active">Reveal</button>
+			<button data-fog-tool="shroud">Shroud</button>
+			<span class="toolbar-sep"></span>
+			<button data-fog-shape="brush" class="active">Brush</button>
+			<button data-fog-shape="rect">Rectangle</button>
+			<span class="toolbar-sep"></span>
+			<label>Size <input type="range" data-fog-brush-size min="5" max="200" value="40"/></label>
+			<span class="toolbar-sep"></span>
+			<button data-fog-push class="push-btn">Push to Players</button>
+			<button data-fog-clear>Reset (Hide All)</button>
+			<button data-fog-reveal-all>Reveal All</button>
+		</div>
+		<div class="canvas-wrap">
+			<img src={ fmt.Sprintf("/dm/maps/%s/image", m.ID) } alt={ m.Title } class="map-image"/>
+		</div>
+		<script src="/static/canvas.js"></script>
+		<script>
+			(function() {
+				var container = document.getElementById('dm-map-view');
+				DungeonRevealer.initDMCanvas(container, container.dataset.mapId);
+			})();
+		</script>
+	</div>
+}
+
+templ PlayerMapEmpty() {
+	<div id="player-map-view">
+		<p class="muted">Waiting for the DM to select a map...</p>
+	</div>
+}
+
+templ PlayerMapImage(m *store.Map) {
+	<div id="player-map-view" class="canvas-container" data-map-id={ m.ID }>
+		<div class="canvas-wrap">
+			<img src={ fmt.Sprintf("/maps/%s/image", m.ID) } alt={ m.Title } class="map-image"/>
+		</div>
+		<script src="/static/canvas.js"></script>
+		<script>
+			(function() {
+				var container = document.getElementById('player-map-view');
+				var ctrl = DungeonRevealer.initPlayerCanvas(container, container.dataset.mapId);
+				// Listen for SSE fog updates
+				document.body.addEventListener('fogUpdate', function() {
+					if (ctrl) ctrl.refresh();
+				});
+			})();
+		</script>
+	</div>
+}

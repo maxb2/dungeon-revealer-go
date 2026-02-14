@@ -1,0 +1,148 @@
+package templates
+
+import (
+	"fmt"
+	"github.com/matt/dungeon-revealer-go/internal/store"
+)
+
+templ NotesPanel(isDM bool) {
+	<div class="notes-panel">
+		<h2>Notes</h2>
+		if isDM {
+			<div class="notes-actions">
+				<button hx-get="/dm/notes/new/edit" hx-target="#notes-content" class="btn-sm">New Note</button>
+			</div>
+		}
+		<input
+			type="search"
+			name="q"
+			placeholder="Search notes..."
+			class="notes-search"
+			if isDM {
+				hx-get="/dm/notes/search"
+			} else {
+				hx-get="/notes/search"
+			}
+			hx-trigger="input changed delay:300ms"
+			hx-target="#notes-list"
+		/>
+		<div id="notes-list"
+			if isDM {
+				hx-get="/dm/notes"
+			} else {
+				hx-get="/notes"
+			}
+			hx-trigger="load"
+			hx-target="this"
+		>
+		</div>
+	</div>
+}
+
+templ NoteList(notes []store.Note, isDM bool) {
+	<ul class="note-items">
+		if len(notes) == 0 {
+			<li class="muted">No notes yet.</li>
+		}
+		for _, n := range notes {
+			<li class="note-item">
+				<button
+					if isDM {
+						hx-get={ fmt.Sprintf("/dm/notes/%s", n.ID) }
+					} else {
+						hx-get={ fmt.Sprintf("/notes/%s", n.ID) }
+					}
+					hx-target="#notes-content"
+					class="note-link"
+				>
+					{ n.Title }
+					if n.IsPublic {
+						<span class="badge">public</span>
+					}
+					if n.IsEntryPoint {
+						<span class="badge">entry</span>
+					}
+				</button>
+			</li>
+		}
+	</ul>
+}
+
+templ NoteView(note *store.Note, htmlContent string, isDM bool) {
+	<div class="note-view">
+		<div class="note-header">
+			<h3>{ note.Title }</h3>
+			if isDM {
+				<div class="note-actions">
+					<button hx-get={ fmt.Sprintf("/dm/notes/%s/edit", note.ID) } hx-target="#notes-content" class="btn-sm">Edit</button>
+					<button hx-delete={ fmt.Sprintf("/dm/notes/%s", note.ID) } hx-target="#notes-list" hx-confirm="Delete this note?" class="btn-sm btn-danger">Delete</button>
+				</div>
+			}
+		</div>
+		<div class="note-body markdown-body">
+			@templ.Raw(htmlContent)
+		</div>
+	</div>
+}
+
+templ NoteEdit(note *store.Note) {
+	<div class="note-edit">
+		<form
+			if note != nil {
+				hx-post={ fmt.Sprintf("/dm/notes/%s", note.ID) }
+			} else {
+				hx-post="/dm/notes/new"
+			}
+			hx-target="#notes-content"
+		>
+			<input
+				type="text"
+				name="title"
+				placeholder="Note title"
+				if note != nil {
+					value={ note.Title }
+				}
+				required
+				class="note-title-input"
+			/>
+			<textarea
+				name="content"
+				placeholder="Markdown content..."
+				rows="12"
+				class="note-content-input"
+			>
+				if note != nil {
+					{ note.Content }
+				}
+			</textarea>
+			<div class="note-options">
+				<label>
+					<input
+						type="checkbox"
+						name="isPublic"
+						if note != nil && note.IsPublic {
+							checked
+						}
+					/>
+					Public (visible to players)
+				</label>
+				<label>
+					<input
+						type="checkbox"
+						name="isEntryPoint"
+						if note != nil && note.IsEntryPoint {
+							checked
+						}
+					/>
+					Entry point (shown in sidebar)
+				</label>
+			</div>
+			<div class="note-form-actions">
+				<button type="submit" class="btn-sm">Save</button>
+				if note != nil {
+					<button type="button" hx-get={ fmt.Sprintf("/dm/notes/%s", note.ID) } hx-target="#notes-content" class="btn-sm btn-secondary">Cancel</button>
+				}
+			</div>
+		</form>
+	</div>
+}

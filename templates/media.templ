@@ -1,0 +1,48 @@
+package templates
+
+import (
+	"fmt"
+	"github.com/matt/dungeon-revealer-go/internal/store"
+)
+
+templ MediaPanel() {
+	<div class="media-panel">
+		<h2>Media</h2>
+		<form
+			hx-post="/dm/media/upload"
+			hx-target="#media-list"
+			hx-encoding="multipart/form-data"
+			class="upload-form"
+		>
+			<input type="file" name="file" accept="image/*" required/>
+			<button type="submit">Upload</button>
+		</form>
+		<div id="media-list" hx-get="/dm/media" hx-trigger="load" hx-target="this">
+		</div>
+	</div>
+}
+
+templ MediaList(files []store.MediaFile) {
+	if len(files) == 0 {
+		<p class="muted">No media files.</p>
+	} else {
+		<div class="media-grid">
+			for _, f := range files {
+				<div class="media-item">
+					<img src={ fmt.Sprintf("/media/%s", f.ID) } alt={ f.Filename } class="media-thumb"/>
+					<div class="media-info">
+						<span class="media-name" title={ f.Filename }>{ f.Filename }</span>
+						<button
+							hx-delete={ fmt.Sprintf("/dm/media/%s", f.ID) }
+							hx-target="#media-list"
+							hx-confirm="Delete this file?"
+							class="map-delete-btn"
+						>
+							&times;
+						</button>
+					</div>
+				</div>
+			}
+		</div>
+	}
+}

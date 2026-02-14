@@ -1,0 +1,45 @@
+package templates
+
+import "github.com/matt/dungeon-revealer-go/internal/store"
+
+templ DM() {
+	@DMWithMaps(nil, "")
+}
+
+templ DMWithMaps(maps []*store.Map, activeID string) {
+	@Layout("DM") {
+		<main class="dm-view" hx-ext="sse" sse-connect="/events?role=dm">
+			<header class="topbar">
+				<h1>DM Dashboard</h1>
+				<nav>
+					<a href="/" target="_blank">Player View</a>
+					<a href="/logout">Logout</a>
+				</nav>
+			</header>
+			<div class="content dm-layout">
+				<aside class="sidebar">
+					<section class="sidebar-section">
+						<h2>Maps</h2>
+						@MapList(maps, activeID)
+					</section>
+					<section class="sidebar-section">
+						@ChatPanel()
+					</section>
+				</aside>
+				<div class="map-area" hx-get="/dm/maps/active" hx-trigger="load" hx-target="this">
+					<p class="muted">Loading...</p>
+				</div>
+				<aside class="sidebar sidebar-right">
+					<section class="sidebar-section">
+						@NotesPanel(true)
+					</section>
+					<div id="notes-content"></div>
+					<section class="sidebar-section">
+						@MediaPanel()
+					</section>
+				</aside>
+			</div>
+			<div id="sse-chat" hx-swap-oob="beforeend:#chat-messages" sse-swap="chatMessage"></div>
+		</main>
+	}
+}

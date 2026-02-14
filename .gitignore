@@ -1,0 +1,6 @@
+data/
+dist/
+dungeon-revealer
+dungeon-revealer-*
+*.exe
+templates/*_templ.go

@@ -1,0 +1,27 @@
+package templates
+
+templ Home() {
+	@Layout("Player") {
+		<main class="player-view" hx-ext="sse" sse-connect="/events?role=player">
+			<header class="topbar">
+				<h1>Dungeon Revealer</h1>
+				<nav>
+					<a href="/logout">Logout</a>
+				</nav>
+			</header>
+			<div class="content player-layout">
+				<div class="map-area" hx-get="/maps/active" hx-trigger="load, sse:fogUpdate" hx-target="this">
+					<p class="muted">Waiting for the DM to select a map...</p>
+				</div>
+				<aside class="sidebar">
+					@ChatPanel()
+					<section class="sidebar-section">
+						@NotesPanel(false)
+					</section>
+					<div id="notes-content"></div>
+				</aside>
+			</div>
+			<div id="sse-chat" hx-swap-oob="beforeend:#chat-messages" sse-swap="chatMessage"></div>
+		</main>
+	}
+}

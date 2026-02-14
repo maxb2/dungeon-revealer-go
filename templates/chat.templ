@@ -1,0 +1,35 @@
+package templates
+
+import (
+	"github.com/matt/dungeon-revealer-go/internal/store"
+)
+
+templ ChatPanel() {
+	<div class="chat-panel">
+		<h2>Chat</h2>
+		<div id="chat-messages" class="chat-messages" hx-get="/chat/messages" hx-trigger="load" hx-target="this">
+		</div>
+		<form class="chat-form" hx-post="/chat/send" hx-target="this" hx-swap="none" hx-on::after-request="this.reset()">
+			<input type="text" name="message" placeholder="Type a message... [1d20] for dice" autocomplete="off" required/>
+			<button type="submit">Send</button>
+		</form>
+	</div>
+}
+
+templ ChatMessages(messages []store.ChatMessage) {
+	for _, msg := range messages {
+		@ChatMessageItem(msg)
+	}
+	<script>
+		var el = document.getElementById('chat-messages');
+		if (el) el.scrollTop = el.scrollHeight;
+	</script>
+}
+
+templ ChatMessageItem(msg store.ChatMessage) {
+	<div class="chat-msg">
+		<span class={ "chat-author", templ.KV("dm", msg.Author == "DM") }>{ msg.Author }</span>
+		<span class="chat-text">{ msg.Content }</span>
+		<span class="chat-time">{ msg.Timestamp.Format("15:04") }</span>
+	</div>
+}

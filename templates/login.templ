@@ -1,0 +1,17 @@
+package templates
+
+templ Login(errorMsg string) {
+	@Layout("Login") {
+		<main class="login-container">
+			<h1>Dungeon Revealer</h1>
+			<form method="POST" action="/login" class="login-form">
+				if errorMsg != "" {
+					<div class="error">{ errorMsg }</div>
+				}
+				<label for="password">Password</label>
+				<input type="password" id="password" name="password" required autofocus/>
+				<button type="submit">Enter</button>
+			</form>
+		</main>
+	}
+}
