@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"log"
 	"net/http"
 
 	"github.com/gorilla/sessions"
@@ -106,6 +107,7 @@ func (a *Auth) RequireRole(minRole Role) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			role := RoleFromContext(r.Context())
 			if !hasAccess(role, minRole) {
+				log.Printf("Auth: denied %s %s (have=%s, need=%s)", r.Method, r.URL.Path, role, minRole)
 				http.Redirect(w, r, "/login", http.StatusSeeOther)
 				return
 			}

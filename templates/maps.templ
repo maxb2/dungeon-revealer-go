@@ -69,7 +69,6 @@ templ MapAreaImage(m *store.Map) {
 		<div class="canvas-wrap">
 			<img src={ fmt.Sprintf("/dm/maps/%s/image", m.ID) } alt={ m.Title } class="map-image"/>
 		</div>
-		<script src="/static/canvas.js"></script>
 		<script>
 			(function() {
 				var container = document.getElementById('dm-map-view');
@@ -90,7 +89,6 @@ templ PlayerMapImage(m *store.Map) {
 		<div class="canvas-wrap">
 			<img src={ fmt.Sprintf("/maps/%s/image", m.ID) } alt={ m.Title } class="map-image"/>
 		</div>
-		<script src="/static/canvas.js"></script>
 		<script>
 			(function() {
 				var container = document.getElementById('player-map-view');

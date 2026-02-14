@@ -26,7 +26,7 @@ templ DMWithMaps(maps []*store.Map, activeID string) {
 						@ChatPanel()
 					</section>
 				</aside>
-				<div class="map-area" hx-get="/dm/maps/active" hx-trigger="load" hx-target="this">
+				<div class="map-area" hx-get="/dm/maps/active" hx-trigger="load, mapChanged from:body" hx-target="this">
 					<p class="muted">Loading...</p>
 				</div>
 				<aside class="sidebar sidebar-right">
@@ -39,7 +39,7 @@ templ DMWithMaps(maps []*store.Map, activeID string) {
 					</section>
 				</aside>
 			</div>
-			<div id="sse-chat" hx-swap-oob="beforeend:#chat-messages" sse-swap="chatMessage"></div>
+			<div id="sse-chat" sse-swap="chatMessage" hx-target="#chat-messages" hx-swap="beforeend"></div>
 		</main>
 	}
 }

@@ -21,7 +21,7 @@ templ Home() {
 					<div id="notes-content"></div>
 				</aside>
 			</div>
-			<div id="sse-chat" hx-swap-oob="beforeend:#chat-messages" sse-swap="chatMessage"></div>
+			<div id="sse-chat" sse-swap="chatMessage" hx-target="#chat-messages" hx-swap="beforeend"></div>
 		</main>
 	}
 }

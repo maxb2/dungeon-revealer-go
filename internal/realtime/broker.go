@@ -2,6 +2,7 @@ package realtime
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"sync"
 )
@@ -62,19 +63,25 @@ func (b *Broker) Publish(e Event) {
 }
 
 func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	log.Printf("SSE: connection attempt from %s, role=%s", r.RemoteAddr, r.URL.Query().Get("role"))
+
 	flusher, ok := w.(http.Flusher)
 	if !ok {
+		log.Printf("SSE: streaming not supported for %s", r.RemoteAddr)
 		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
 		return
 	}
 
 	isDM := r.URL.Query().Get("role") == "dm"
 	c := b.Subscribe(isDM)
+	log.Printf("SSE: client connected (isDM=%v)", isDM)
 	defer b.Unsubscribe(c)
 
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
+	// Send initial comment so the client knows the stream is alive
+	fmt.Fprint(w, ":ok\n\n")
 	flusher.Flush()
 
 	ctx := r.Context()

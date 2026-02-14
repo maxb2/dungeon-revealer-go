@@ -3,8 +3,7 @@ package handler
 import (
 	"bytes"
 	"net/http"
-
-	"github.com/matt/dungeon-revealer-go/internal/auth"
+	"strings"
 	"github.com/matt/dungeon-revealer-go/internal/dice"
 	"github.com/matt/dungeon-revealer-go/internal/realtime"
 	"github.com/matt/dungeon-revealer-go/internal/store"
@@ -32,9 +31,10 @@ func (h *ChatHandler) Send(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	role := auth.RoleFromContext(r.Context())
+	// Determine author from the page they sent from, since with
+	// no passwords configured everyone has admin role.
 	author := "Player"
-	if role == auth.RoleAdmin {
+	if strings.Contains(r.Header.Get("Referer"), "/dm") {
 		author = "DM"
 	}
 
