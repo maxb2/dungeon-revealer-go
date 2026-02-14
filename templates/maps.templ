@@ -67,7 +67,11 @@ templ MapAreaImage(m *store.Map) {
 				<label>Size <input type="range" data-fog-brush-size min="5" max="200" value="40"/></label>
 			</span>
 			<span class="token-tools" style="display:none">
-				<span class="muted">Click to place a token. Drag to move. Right-click to delete.</span>
+				<label>Name <input type="text" data-token-label placeholder="unnamed" class="token-input-text"/></label>
+				<label>Color <input type="color" data-token-color value="#e94560"/></label>
+				<label>Size <input type="range" data-token-radius min="5" max="100" value="20"/></label>
+				<label><input type="checkbox" data-token-visible/> Visible</label>
+				<label><input type="checkbox" data-token-moveable checked/> Moveable</label>
 			</span>
 			<span class="toolbar-sep"></span>
 			<button data-fog-push class="push-btn">Push to Players</button>

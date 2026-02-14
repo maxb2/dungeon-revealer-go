@@ -113,6 +113,7 @@ func (h *TokenHandler) UpdateToken(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		// DM can update everything
+		r.ParseForm()
 		if v := r.FormValue("x"); v != "" {
 			existing.X, _ = strconv.ParseFloat(v, 64)
 		}
@@ -122,8 +123,8 @@ func (h *TokenHandler) UpdateToken(w http.ResponseWriter, r *http.Request) {
 		if v := r.FormValue("radius"); v != "" {
 			existing.Radius, _ = strconv.ParseFloat(v, 64)
 		}
-		if v := r.FormValue("label"); v != "" {
-			existing.Label = v
+		if _, ok := r.Form["label"]; ok {
+			existing.Label = r.FormValue("label")
 		}
 		if v := r.FormValue("color"); v != "" {
 			existing.Color = v

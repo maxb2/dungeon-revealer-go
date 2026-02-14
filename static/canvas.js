@@ -89,6 +89,9 @@
     var tokens = [];
     var dragging = null;
     var dragOffset = { x: 0, y: 0 };
+    var hasDragged = false;
+    var dragStartPos = { x: 0, y: 0 };
+    var activePopup = null;
 
     // In fog mode, token canvas doesn't receive pointer events (DM only)
     if (isDM) canvas.style.pointerEvents = "none";
@@ -112,12 +115,13 @@
     function render() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       tokens.forEach(function (t) {
+        if (!isDM && !t.visible) return;
+        var alpha = isDM && !t.visible ? 0.4 : 0.8;
         ctx.beginPath();
         ctx.arc(t.x, t.y, t.radius, 0, Math.PI * 2);
         ctx.fillStyle = t.color || "#e94560";
-        ctx.globalAlpha = !isDM && !t.visible ? 0 : isDM && !t.visible ? 0.4 : 0.8;
+        ctx.globalAlpha = alpha;
         ctx.fill();
-        ctx.globalAlpha = 1;
         ctx.strokeStyle = "#fff";
         ctx.lineWidth = 2;
         ctx.stroke();
@@ -128,6 +132,7 @@
           ctx.textBaseline = "middle";
           ctx.fillText(t.label, t.x, t.y);
         }
+        ctx.globalAlpha = 1;
       });
     }
 
@@ -146,6 +151,7 @@
     function hitTest(pos) {
       for (var i = tokens.length - 1; i >= 0; i--) {
         var t = tokens[i];
+        if (!isDM && !t.visible) continue;
         var dx = pos.x - t.x;
         var dy = pos.y - t.y;
         if (dx * dx + dy * dy <= t.radius * t.radius) {
@@ -166,10 +172,14 @@
       var token = hitTest(pos);
       if (token && (isDM || token.moveable)) {
         dragging = token;
+        hasDragged = false;
+        dragStartPos.x = pos.x;
+        dragStartPos.y = pos.y;
         dragOffset.x = token.x - pos.x;
         dragOffset.y = token.y - pos.y;
       } else if (isDM && e.button === 0) {
-        // Click on empty space in token mode — place a new token
+        // Click on empty space — close popup, place a new token
+        closeTokenPopup();
         addToken(pos);
       }
     });
@@ -177,6 +187,12 @@
     canvas.addEventListener("mousemove", function (e) {
       if (!dragging) return;
       var pos = coords(e);
+      if (!hasDragged) {
+        var dx = pos.x - dragStartPos.x;
+        var dy = pos.y - dragStartPos.y;
+        if (dx * dx + dy * dy < 9) return; // 3px threshold
+        hasDragged = true;
+      }
       dragging.x = pos.x + dragOffset.x;
       dragging.y = pos.y + dragOffset.y;
       render();
@@ -184,13 +200,19 @@
 
     canvas.addEventListener("mouseup", function (e) {
       if (!dragging) return;
-      var url = isDM
-        ? "/dm/maps/" + mapId + "/tokens/" + dragging.id
-        : "/maps/" + mapId + "/tokens/" + dragging.id;
-      var body = new URLSearchParams();
-      body.set("x", dragging.x);
-      body.set("y", dragging.y);
-      fetch(url, { method: "PUT", body: body });
+      if (hasDragged) {
+        // Drag completed — send position update
+        var url = isDM
+          ? "/dm/maps/" + mapId + "/tokens/" + dragging.id
+          : "/maps/" + mapId + "/tokens/" + dragging.id;
+        var body = new URLSearchParams();
+        body.set("x", dragging.x);
+        body.set("y", dragging.y);
+        fetch(url, { method: "PUT", body: body });
+      } else if (isDM) {
+        // Click without drag — open edit popup
+        showTokenPopup(dragging, e);
+      }
       dragging = null;
     });
 
@@ -208,19 +230,82 @@
       });
     }
 
+    function getToolbarValue(attr, fallback) {
+      var el = container.querySelector("[" + attr + "]");
+      if (!el) return fallback;
+      if (el.type === "checkbox") return el.checked;
+      return el.value || fallback;
+    }
+
     function addToken(pos) {
       var body = new URLSearchParams();
       body.set("x", pos.x);
       body.set("y", pos.y);
-      body.set("radius", "20");
-      body.set("label", "");
-      body.set("color", "#e94560");
-      body.set("visible", "true");
-      body.set("moveable", "true");
+      body.set("radius", getToolbarValue("data-token-radius", "20"));
+      body.set("label", getToolbarValue("data-token-label", ""));
+      body.set("color", getToolbarValue("data-token-color", "#e94560"));
+      body.set("visible", getToolbarValue("data-token-visible", false) ? "true" : "false");
+      body.set("moveable", getToolbarValue("data-token-moveable", true) ? "true" : "false");
       fetch("/dm/maps/" + mapId + "/tokens", {
         method: "POST",
         body: body,
       }).then(function () { loadTokens(); });
+    }
+
+    function closeTokenPopup() {
+      if (activePopup) {
+        activePopup.remove();
+        activePopup = null;
+      }
+    }
+
+    function showTokenPopup(token, e) {
+      closeTokenPopup();
+      var rect = container.getBoundingClientRect();
+      var popup = document.createElement("div");
+      popup.className = "token-popup";
+      popup.style.left = (e.clientX - rect.left + 10) + "px";
+      popup.style.top = (e.clientY - rect.top + 10) + "px";
+      popup.innerHTML =
+        '<label>Name <input type="text" data-field="label" value="' + (token.label || "").replace(/"/g, "&quot;") + '" class="token-input-text"/></label>' +
+        '<label>Color <input type="color" data-field="color" value="' + (token.color || "#e94560") + '"/></label>' +
+        '<label>Size <input type="range" data-field="radius" min="5" max="100" value="' + (token.radius || 20) + '"/></label>' +
+        '<label><input type="checkbox" data-field="visible"' + (token.visible ? " checked" : "") + '/> Visible</label>' +
+        '<label><input type="checkbox" data-field="moveable"' + (token.moveable ? " checked" : "") + '/> Moveable</label>' +
+        '<div class="token-popup-actions">' +
+          '<button class="btn-sm" data-popup-save>Save</button>' +
+          '<button class="btn-sm btn-danger" data-popup-delete>Delete</button>' +
+        '</div>';
+
+      popup.addEventListener("mousedown", function (ev) { ev.stopPropagation(); });
+
+      popup.querySelector("[data-popup-save]").addEventListener("click", function () {
+        var body = new URLSearchParams();
+        body.set("label", popup.querySelector('[data-field="label"]').value);
+        body.set("color", popup.querySelector('[data-field="color"]').value);
+        body.set("radius", popup.querySelector('[data-field="radius"]').value);
+        body.set("visible", popup.querySelector('[data-field="visible"]').checked ? "true" : "false");
+        body.set("moveable", popup.querySelector('[data-field="moveable"]').checked ? "true" : "false");
+        fetch("/dm/maps/" + mapId + "/tokens/" + token.id, {
+          method: "PUT",
+          body: body,
+        }).then(function () {
+          closeTokenPopup();
+          loadTokens();
+        });
+      });
+
+      popup.querySelector("[data-popup-delete]").addEventListener("click", function () {
+        fetch("/dm/maps/" + mapId + "/tokens/" + token.id, {
+          method: "DELETE",
+        }).then(function () {
+          closeTokenPopup();
+          loadTokens();
+        });
+      });
+
+      container.appendChild(popup);
+      activePopup = popup;
     }
 
     // Listen for SSE tokenUpdate events (bubbles from hx-trigger="sse:tokenUpdate" elements)
