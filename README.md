@@ -1,0 +1,81 @@
+# Dungeon Revealer
+
+A web-based map sharing tool for tabletop RPGs. The DM uploads maps, draws fog of war, and reveals areas to players in real time. Built as a single Go binary with no external dependencies.
+
+## Features
+
+- **Fog of War** — DM draws to hide/reveal areas of the map, pushes updates live to players
+- **Tokens** — Place and move tokens on the map, visible to all players in real time (including custom image tokens)
+- **Chat & Dice** — Built-in chat with dice rolling (`/roll 2d6+3`)
+- **Notes** — Markdown notes with full-text search, shareable between DM and players
+- **Media Library** — Upload images for use in notes and handouts
+- **Real-time sync** — All updates pushed via Server-Sent Events
+- **Single binary** — No runtime dependencies, no database server, no Node.js
+- **Raspberry Pi ready** — Cross-compiles to ARM with no CGo
+
+## Quick Start
+
+Download a binary from the [releases page](../../releases), or build from source:
+
+```sh
+make build
+./dungeon-revealer --dm-password=secretDM
+```
+
+Then open `http://localhost:3000` in your browser. Players connect to the same address.
+
+## Configuration
+
+All options can be set via flags or environment variables:
+
+| Flag | Env Var | Default | Description |
+|------|---------|---------|-------------|
+| `--port` | `DR_PORT` | `3000` | HTTP port |
+| `--data-dir` | `DR_DATA_DIR` | `./data` | Directory for maps, media, and database |
+| `--dm-password` | `DR_DM_PASSWORD` | *(none)* | Password for DM access (if unset, all users are admins) |
+| `--player-password` | `DR_PLAYER_PASSWORD` | *(none)* | Password for player access (if unset, players can join freely) |
+| `--session-secret` | `DR_SESSION_SECRET` | *(random)* | Secret for session cookies |
+
+## Building from Source
+
+Requires Go 1.25+ and [templ](https://templ.guide).
+
+```sh
+# Install templ
+go install github.com/a-h/templ/cmd/templ@latest
+
+# Build for current platform
+make build
+
+# Build for all platforms
+make build-all
+
+# Run in dev mode (dm-password=admin)
+make dev
+```
+
+Cross-compiled binaries are output to `dist/`:
+- `linux/amd64`, `linux/arm64`, `linux/armv7`
+- `darwin/arm64`
+- `windows/amd64`
+
+## How It Works
+
+1. The DM logs in with the DM password and uploads a map image
+2. The DM uses brush tools to paint fog of war over the map, then pushes the revealed state to players
+3. Players see the map with fog applied in real time
+4. Tokens can be placed on the map and moved by the DM or players
+5. Chat, dice rolls, and notes are available in the sidebar
+
+## Tech Stack
+
+- **Go** standard library HTTP server and router
+- **[templ](https://templ.guide)** for type-safe HTML templates
+- **[HTMX](https://htmx.org)** for dynamic page updates
+- **[zombiezen/sqlite](https://github.com/nicholasgasior/zombiezen-sqlite)** for pure-Go SQLite (notes + media metadata)
+- **Canvas API** for fog-of-war drawing and token rendering
+- **Server-Sent Events** for real-time updates
+
+## License
+
+MIT
