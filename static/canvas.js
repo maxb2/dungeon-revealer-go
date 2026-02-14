@@ -144,6 +144,11 @@
       }).then(function () { loadTokens(); });
     }
 
+    // Listen for SSE tokenUpdate events (bubbles from hx-trigger="sse:tokenUpdate" elements)
+    document.body.addEventListener("sse:tokenUpdate", function () {
+      loadTokens();
+    });
+
     if (mapImg.complete) resize();
     else mapImg.addEventListener("load", resize);
     window.addEventListener("resize", resize);

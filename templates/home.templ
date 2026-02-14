@@ -22,6 +22,7 @@ templ Home() {
 				</aside>
 			</div>
 			<div id="sse-chat" sse-swap="chatMessage" hx-target="#chat-messages" hx-swap="beforeend"></div>
+			<div hx-trigger="sse:tokenUpdate" style="display:none"></div>
 		</main>
 	}
 }
