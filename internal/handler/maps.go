@@ -64,7 +64,7 @@ func (h *MapHandler) SetActive(w http.ResponseWriter, r *http.Request) {
 	}
 	h.maps.SetActive(id)
 
-	// Trigger map area refresh via HTMX event
+	// Trigger DM map area refresh via HTMX event
 	w.Header().Set("HX-Trigger", "mapChanged")
 
 	// Return updated map list

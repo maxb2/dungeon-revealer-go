@@ -10,7 +10,7 @@ templ Home() {
 				</nav>
 			</header>
 			<div class="content player-layout">
-				<div class="map-area" hx-get="/maps/active" hx-trigger="load, sse:fogUpdate" hx-target="this">
+				<div class="map-area" hx-get="/maps/active" hx-trigger="load" hx-target="this">
 					<p class="muted">Waiting for the DM to select a map...</p>
 				</div>
 				<aside class="sidebar">
@@ -22,7 +22,19 @@ templ Home() {
 				</aside>
 			</div>
 			<div id="sse-chat" sse-swap="chatMessage" hx-target="#chat-messages" hx-swap="beforeend"></div>
+			<div hx-trigger="sse:fogUpdate" style="display:none"></div>
 			<div hx-trigger="sse:tokenUpdate" style="display:none"></div>
+			<script>
+				document.body.addEventListener('sse:fogUpdate', function(e) {
+					var view = document.getElementById('player-map-view');
+					var currentMapId = view ? view.dataset.mapId : '';
+					var pushedMapId = e.detail && e.detail.data ? e.detail.data : '';
+					if (!currentMapId || (pushedMapId && pushedMapId !== currentMapId)) {
+						var mapArea = document.querySelector('.map-area');
+						if (mapArea) htmx.ajax('GET', '/maps/active', {target: mapArea, swap: 'innerHTML'});
+					}
+				});
+			</script>
 		</main>
 	}
 }

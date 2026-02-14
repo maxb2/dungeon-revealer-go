@@ -101,8 +101,7 @@ templ PlayerMapImage(m *store.Map) {
 			(function() {
 				var container = document.getElementById('player-map-view');
 				var ctrl = DungeonRevealer.initPlayerCanvas(container, container.dataset.mapId);
-				// Listen for SSE fog updates
-				document.body.addEventListener('fogUpdate', function() {
+				document.body.addEventListener('sse:fogUpdate', function() {
 					if (ctrl) ctrl.refresh();
 				});
 			})();
