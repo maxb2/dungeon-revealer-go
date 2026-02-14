@@ -1,6 +1,6 @@
 package templates
 
-templ Home() {
+templ Home(chatName string) {
 	@Layout("Player") {
 		<main class="player-view" hx-ext="sse" sse-connect="/events?role=player">
 			<header class="topbar">
@@ -14,7 +14,7 @@ templ Home() {
 					<p class="muted">Waiting for the DM to select a map...</p>
 				</div>
 				<aside class="sidebar">
-					@ChatPanel()
+					@ChatPanel(chatName)
 					<section class="sidebar-section">
 						@NotesPanel(false)
 					</section>

@@ -607,6 +607,47 @@ body {
   align-self: flex-end;
 }
 
+/* Chat Name */
+.chat-name-display {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.25rem;
+  font-size: 0.8rem;
+}
+
+.chat-name-label {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.chat-name-edit-link {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.7rem;
+}
+
+.chat-name-edit-link:hover {
+  color: var(--accent-hover);
+}
+
+.chat-name-form {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
+.chat-name-form input {
+  padding: 0.2rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.8rem;
+  width: 120px;
+}
+
 .chat-form {
   display: flex;
   gap: 0.4rem;

@@ -4,9 +4,12 @@ import (
 	"github.com/matt/dungeon-revealer-go/internal/store"
 )
 
-templ ChatPanel() {
+templ ChatPanel(chatName string) {
 	<div class="chat-panel">
 		<h2>Chat</h2>
+		<div id="chat-name-area">
+			@ChatNameDisplay(chatName)
+		</div>
 		<div id="chat-messages" class="chat-messages" hx-get="/chat/messages" hx-trigger="load" hx-target="this">
 		</div>
 		<form class="chat-form" hx-post="/chat/send" hx-target="this" hx-swap="none" hx-on::after-request="this.reset()">
@@ -14,6 +17,20 @@ templ ChatPanel() {
 			<button type="submit">Send</button>
 		</form>
 	</div>
+}
+
+templ ChatNameDisplay(name string) {
+	<div class="chat-name-display">
+		<span class="chat-name-label">{ name }</span>
+		<a href="#" class="chat-name-edit-link" hx-get="/chat/name/edit" hx-target="#chat-name-area" hx-swap="innerHTML">edit</a>
+	</div>
+}
+
+templ ChatNameEdit(name string) {
+	<form class="chat-name-form" hx-post="/chat/name" hx-target="#chat-name-area" hx-swap="innerHTML">
+		<input type="text" name="chatName" value={ name } maxlength="20" required/>
+		<button type="submit" class="btn-sm">Save</button>
+	</form>
 }
 
 templ ChatMessages(messages []store.ChatMessage) {

@@ -3,10 +3,10 @@ package templates
 import "github.com/matt/dungeon-revealer-go/internal/store"
 
 templ DM() {
-	@DMWithMaps(nil, "")
+	@DMWithMaps(nil, "", "DM")
 }
 
-templ DMWithMaps(maps []*store.Map, activeID string) {
+templ DMWithMaps(maps []*store.Map, activeID string, chatName string) {
 	@Layout("DM") {
 		<main class="dm-view" hx-ext="sse" sse-connect="/events?role=dm">
 			<header class="topbar">
@@ -23,7 +23,7 @@ templ DMWithMaps(maps []*store.Map, activeID string) {
 						@MapList(maps, activeID)
 					</section>
 					<section class="sidebar-section">
-						@ChatPanel()
+						@ChatPanel(chatName)
 					</section>
 				</aside>
 				<div class="map-area" hx-get="/dm/maps/active" hx-trigger="load, mapChanged from:body" hx-target="this">

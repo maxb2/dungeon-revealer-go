@@ -117,7 +117,8 @@ func TestAuthHandler_Logout(t *testing.T) {
 func TestChatHandler_Send_Empty(t *testing.T) {
 	cs := store.NewChatStore(100)
 	broker := realtime.NewBroker()
-	h := NewChatHandler(cs, broker)
+	a := auth.New("secret", "", "")
+	h := NewChatHandler(cs, broker, a)
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/chat", strings.NewReader("message="))
@@ -138,7 +139,8 @@ func TestChatHandler_Send_Empty(t *testing.T) {
 func TestChatHandler_Send_Message(t *testing.T) {
 	cs := store.NewChatStore(100)
 	broker := realtime.NewBroker()
-	h := NewChatHandler(cs, broker)
+	a := auth.New("secret", "", "")
+	h := NewChatHandler(cs, broker, a)
 
 	// Subscribe to verify broadcast
 	sub := broker.Subscribe(false)
@@ -148,6 +150,7 @@ func TestChatHandler_Send_Message(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/chat", strings.NewReader(form.Encode()))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	// No passwords + no role in context = unauthenticated, gets "Player N" default
 	h.Send(w, r)
 
 	if w.Code != http.StatusNoContent {
@@ -161,15 +164,16 @@ func TestChatHandler_Send_Message(t *testing.T) {
 	if msgs[0].Content != "Hello world!" {
 		t.Errorf("content = %q, want %q", msgs[0].Content, "Hello world!")
 	}
-	if msgs[0].Author != "Player" {
-		t.Errorf("author = %q, want %q", msgs[0].Author, "Player")
+	if msgs[0].Author != "Player 1" {
+		t.Errorf("author = %q, want %q", msgs[0].Author, "Player 1")
 	}
 }
 
 func TestChatHandler_Send_DMAuthor(t *testing.T) {
 	cs := store.NewChatStore(100)
 	broker := realtime.NewBroker()
-	h := NewChatHandler(cs, broker)
+	a := auth.New("secret", "", "")
+	h := NewChatHandler(cs, broker, a)
 
 	form := url.Values{"message": {"DM says hi"}}
 	w := httptest.NewRecorder()

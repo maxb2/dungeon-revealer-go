@@ -2,8 +2,11 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
+	"strings"
+	"sync/atomic"
 
 	"github.com/gorilla/sessions"
 )
@@ -24,6 +27,7 @@ type Auth struct {
 	store          sessions.Store
 	dmPassword     string
 	playerPassword string
+	playerCounter  int64
 }
 
 func New(secret, dmPassword, playerPassword string) *Auth {
@@ -131,4 +135,36 @@ func hasAccess(have, need Role) bool {
 		RoleAdmin:           2,
 	}
 	return levels[have] >= levels[need]
+}
+
+// GetChatName returns the chat display name from the session.
+// If none is set, it generates a default based on isDM and saves it.
+func (a *Auth) GetChatName(w http.ResponseWriter, r *http.Request, isDM bool) string {
+	session, _ := a.store.Get(r, sessionName)
+	if name, ok := session.Values["chatName"].(string); ok && name != "" {
+		return name
+	}
+
+	var name string
+	if isDM {
+		name = "DM"
+	} else {
+		n := atomic.AddInt64(&a.playerCounter, 1)
+		name = fmt.Sprintf("Player %d", n)
+	}
+
+	session.Values["chatName"] = name
+	session.Save(r, w)
+	return name
+}
+
+// SetChatName updates the chat display name in the session.
+func (a *Auth) SetChatName(w http.ResponseWriter, r *http.Request, name string) error {
+	name = strings.TrimSpace(name)
+	if len(name) > 20 {
+		name = name[:20]
+	}
+	session, _ := a.store.Get(r, sessionName)
+	session.Values["chatName"] = name
+	return session.Save(r, w)
 }
