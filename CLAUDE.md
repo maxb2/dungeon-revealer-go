@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```sh
 make build          # Generate templ + build binary (CGO_ENABLED=0)
 make dev            # Run locally with --dm-password=admin
-make build-all      # Cross-compile to dist/ (linux/amd64, linux/arm64, linux/armv7, darwin/arm64, windows/amd64)
+make build-all      # Cross-compile to dist/ (linux/amd64, linux/arm64, linux/armv7, darwin/amd64, darwin/arm64, windows/amd64, windows/arm64)
 make clean          # Remove binaries and dist/
 
 CGO_ENABLED=0 go test ./...   # Run all tests
