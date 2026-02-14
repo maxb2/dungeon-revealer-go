@@ -54,13 +54,21 @@ templ MapAreaEmpty() {
 templ MapAreaImage(m *store.Map) {
 	<div id="dm-map-view" class="canvas-container" data-map-id={ m.ID }>
 		<div class="fog-toolbar">
-			<button data-fog-tool="reveal" class="active">Reveal</button>
-			<button data-fog-tool="shroud">Shroud</button>
+			<button data-dm-mode="fog" class="active">Fog</button>
+			<button data-dm-mode="tokens">Tokens</button>
 			<span class="toolbar-sep"></span>
-			<button data-fog-shape="brush" class="active">Brush</button>
-			<button data-fog-shape="rect">Rectangle</button>
-			<span class="toolbar-sep"></span>
-			<label>Size <input type="range" data-fog-brush-size min="5" max="200" value="40"/></label>
+			<span class="fog-tools">
+				<button data-fog-tool="reveal" class="active">Reveal</button>
+				<button data-fog-tool="shroud">Shroud</button>
+				<span class="toolbar-sep"></span>
+				<button data-fog-shape="brush" class="active">Brush</button>
+				<button data-fog-shape="rect">Rectangle</button>
+				<span class="toolbar-sep"></span>
+				<label>Size <input type="range" data-fog-brush-size min="5" max="200" value="40"/></label>
+			</span>
+			<span class="token-tools" style="display:none">
+				<span class="muted">Click to place a token. Drag to move. Right-click to delete.</span>
+			</span>
 			<span class="toolbar-sep"></span>
 			<button data-fog-push class="push-btn">Push to Players</button>
 			<button data-fog-clear>Reset (Hide All)</button>

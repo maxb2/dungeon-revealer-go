@@ -4,13 +4,16 @@
 
   // --- Token Layer (shared between DM and Player) ---
   function createTokenLayer(container, mapImg, mapId, isDM) {
-    const canvas = document.createElement("canvas");
+    var canvas = document.createElement("canvas");
     canvas.className = "token-canvas";
     container.querySelector(".canvas-wrap").appendChild(canvas);
-    const ctx = canvas.getContext("2d");
+    var ctx = canvas.getContext("2d");
     var tokens = [];
     var dragging = null;
     var dragOffset = { x: 0, y: 0 };
+
+    // In fog mode, token canvas doesn't receive pointer events (DM only)
+    if (isDM) canvas.style.pointerEvents = "none";
 
     function resize() {
       canvas.width = mapImg.naturalWidth;
@@ -74,6 +77,11 @@
       return null;
     }
 
+    function setMode(mode) {
+      canvas.style.pointerEvents = mode === "tokens" ? "auto" : "none";
+    }
+
+    // --- Mouse handlers (work for both DM token mode and player token dragging) ---
     canvas.addEventListener("mousedown", function (e) {
       var pos = coords(e);
       var token = hitTest(pos);
@@ -81,23 +89,11 @@
         dragging = token;
         dragOffset.x = token.x - pos.x;
         dragOffset.y = token.y - pos.y;
-        e.stopPropagation();
-      } else if (isDM) {
-        // No token hit — disable token canvas so fog canvas receives all events
-        canvas.style.pointerEvents = "none";
-        var below = document.elementFromPoint(e.clientX, e.clientY);
-        if (below && below !== canvas) {
-          below.dispatchEvent(new MouseEvent("mousedown", e));
-        }
+      } else if (isDM && e.button === 0) {
+        // Click on empty space in token mode — place a new token
+        addToken(pos);
       }
     });
-
-    // Re-enable token canvas pointer events when fog drawing ends
-    if (isDM) {
-      document.addEventListener("mouseup", function () {
-        canvas.style.pointerEvents = "auto";
-      });
-    }
 
     canvas.addEventListener("mousemove", function (e) {
       if (!dragging) return;
@@ -119,23 +115,33 @@
       dragging = null;
     });
 
-    // DM: double-click to add token
+    // Right-click to delete token (DM only)
     if (isDM) {
-      canvas.addEventListener("dblclick", function (e) {
+      canvas.addEventListener("contextmenu", function (e) {
         var pos = coords(e);
-        var body = new URLSearchParams();
-        body.set("x", pos.x);
-        body.set("y", pos.y);
-        body.set("radius", "20");
-        body.set("label", "");
-        body.set("color", "#e94560");
-        body.set("visible", "true");
-        body.set("moveable", "true");
-        fetch("/dm/maps/" + mapId + "/tokens", {
-          method: "POST",
-          body: body,
-        }).then(function () { loadTokens(); });
+        var token = hitTest(pos);
+        if (token) {
+          e.preventDefault();
+          fetch("/dm/maps/" + mapId + "/tokens/" + token.id, {
+            method: "DELETE",
+          }).then(function () { loadTokens(); });
+        }
       });
+    }
+
+    function addToken(pos) {
+      var body = new URLSearchParams();
+      body.set("x", pos.x);
+      body.set("y", pos.y);
+      body.set("radius", "20");
+      body.set("label", "");
+      body.set("color", "#e94560");
+      body.set("visible", "true");
+      body.set("moveable", "true");
+      fetch("/dm/maps/" + mapId + "/tokens", {
+        method: "POST",
+        body: body,
+      }).then(function () { loadTokens(); });
     }
 
     if (mapImg.complete) resize();
@@ -143,7 +149,7 @@
     window.addEventListener("resize", resize);
     loadTokens();
 
-    return { refresh: loadTokens, resize: resize };
+    return { refresh: loadTokens, resize: resize, setMode: setMode };
   }
 
   // --- DM Fog Canvas ---
@@ -266,7 +272,28 @@
       }, 100);
     }
 
+    // Init token layer on top of fog
+    var tokenCtrl = createTokenLayer(container, mapImg, mapId, true);
+
+    // --- Toolbar event handling ---
+    var fogTools = container.querySelector(".fog-tools");
+    var tokenTools = container.querySelector(".token-tools");
+
     container.addEventListener("click", function (e) {
+      // Mode toggle
+      var modeBtn = e.target.closest("[data-dm-mode]");
+      if (modeBtn) {
+        var mode = modeBtn.dataset.dmMode;
+        container.querySelectorAll("[data-dm-mode]").forEach(function (b) {
+          b.classList.toggle("active", b === modeBtn);
+        });
+        tokenCtrl.setMode(mode);
+        canvas.style.pointerEvents = mode === "fog" ? "auto" : "none";
+        if (fogTools) fogTools.style.display = mode === "fog" ? "" : "none";
+        if (tokenTools) tokenTools.style.display = mode === "tokens" ? "" : "none";
+        return;
+      }
+
       var btn = e.target.closest("[data-fog-tool]");
       if (btn) {
         tool = btn.dataset.fogTool;
@@ -284,6 +311,7 @@
       if (e.target.closest("[data-fog-push]"))
         fetch("/dm/maps/" + mapId + "/fog/push", { method: "POST" });
       if (e.target.closest("[data-fog-clear]")) {
+        ctx.globalCompositeOperation = "source-over";
         ctx.fillStyle = "rgba(0, 0, 0, 1)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         saveFog();
@@ -304,9 +332,6 @@
     if (mapImg.complete) resize();
     else mapImg.addEventListener("load", resize);
     window.addEventListener("resize", resize);
-
-    // Init token layer on top of fog
-    var tokenCtrl = createTokenLayer(container, mapImg, mapId, true);
 
     return { refreshTokens: tokenCtrl.refresh };
   }
@@ -346,7 +371,7 @@
     else mapImg.addEventListener("load", resize);
     window.addEventListener("resize", resize);
 
-    // Token layer on top
+    // Token layer on top (players can always interact with moveable tokens)
     var tokenCtrl = createTokenLayer(container, mapImg, mapId, false);
 
     return {
