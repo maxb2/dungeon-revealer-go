@@ -82,8 +82,22 @@
         dragOffset.x = token.x - pos.x;
         dragOffset.y = token.y - pos.y;
         e.stopPropagation();
+      } else if (isDM) {
+        // No token hit — disable token canvas so fog canvas receives all events
+        canvas.style.pointerEvents = "none";
+        var below = document.elementFromPoint(e.clientX, e.clientY);
+        if (below && below !== canvas) {
+          below.dispatchEvent(new MouseEvent("mousedown", e));
+        }
       }
     });
+
+    // Re-enable token canvas pointer events when fog drawing ends
+    if (isDM) {
+      document.addEventListener("mouseup", function () {
+        canvas.style.pointerEvents = "auto";
+      });
+    }
 
     canvas.addEventListener("mousemove", function (e) {
       if (!dragging) return;
@@ -147,6 +161,7 @@
     var brushSize = 40;
     var drawing = false;
     var rectStart = null;
+    var fogSnapshot = null;
 
     function resize() {
       canvas.width = mapImg.naturalWidth;
@@ -199,15 +214,22 @@
     canvas.addEventListener("mousedown", function (e) {
       drawing = true;
       var pos = canvasCoords(e);
-      if (shape === "brush") drawBrush(pos.x, pos.y);
-      else rectStart = pos;
+      if (shape === "brush") {
+        drawBrush(pos.x, pos.y);
+      } else {
+        rectStart = pos;
+        fogSnapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      }
     });
 
     canvas.addEventListener("mousemove", function (e) {
       if (!drawing) return;
+      var pos = canvasCoords(e);
       if (shape === "brush") {
-        var pos = canvasCoords(e);
         drawBrush(pos.x, pos.y);
+      } else if (rectStart && fogSnapshot) {
+        ctx.putImageData(fogSnapshot, 0, 0);
+        drawRect(rectStart.x, rectStart.y, pos.x, pos.y);
       }
     });
 
@@ -215,9 +237,11 @@
       if (!drawing) return;
       drawing = false;
       if (shape === "rect" && rectStart) {
+        if (fogSnapshot) ctx.putImageData(fogSnapshot, 0, 0);
         var pos = canvasCoords(e);
         drawRect(rectStart.x, rectStart.y, pos.x, pos.y);
         rectStart = null;
+        fogSnapshot = null;
       }
       saveFog();
     });
