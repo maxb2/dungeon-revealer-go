@@ -93,6 +93,10 @@
     var dragStartPos = { x: 0, y: 0 };
     var activePopup = null;
 
+    // Bug 2: alive flag — set false when container is removed by HTMX
+    var alive = true;
+    container.addEventListener("htmx:beforeCleanupElement", function () { alive = false; });
+
     // In fog mode, token canvas doesn't receive pointer events (DM only)
     if (isDM) canvas.style.pointerEvents = "none";
 
@@ -308,14 +312,18 @@
       activePopup = popup;
     }
 
-    // Listen for SSE tokenUpdate events (bubbles from hx-trigger="sse:tokenUpdate" elements)
+    // Bug 2: Guard SSE and resize listeners with alive check
     document.body.addEventListener("sse:tokenUpdate", function () {
+      if (!alive) return;
       loadTokens();
     });
 
-    if (mapImg.complete) resize();
+    if (mapImg.complete) requestAnimationFrame(resize);
     else mapImg.addEventListener("load", resize);
-    window.addEventListener("resize", resize);
+    window.addEventListener("resize", function () {
+      if (!alive) return;
+      resize();
+    });
     loadTokens();
 
     return { refresh: loadTokens, resize: resize, setMode: setMode };
@@ -326,9 +334,16 @@
     var mapImg = container.querySelector(".map-image");
     if (!mapImg) return;
 
+    // Bug 2: Remove any existing fog/token canvases left over from a previous init
+    var zoomWrap = container.querySelector(".zoom-wrap");
+    var oldFog = zoomWrap.querySelector(".fog-canvas");
+    if (oldFog) oldFog.remove();
+    var oldToken = zoomWrap.querySelector(".token-canvas");
+    if (oldToken) oldToken.remove();
+
     var canvas = document.createElement("canvas");
     canvas.className = "fog-canvas";
-    container.querySelector(".zoom-wrap").appendChild(canvas);
+    zoomWrap.appendChild(canvas);
     var ctx = canvas.getContext("2d");
 
     var tool = "reveal";
@@ -337,6 +352,12 @@
     var drawing = false;
     var rectStart = null;
     var fogSnapshot = null;
+    // Bug 1: track last brush position for interpolation
+    var lastBrushPos = null;
+
+    // Bug 2: alive flag — set false when container is cleaned up by HTMX
+    var alive = true;
+    container.addEventListener("htmx:beforeCleanupElement", function () { alive = false; });
 
     function resize() {
       canvas.width = mapImg.naturalWidth;
@@ -346,6 +367,28 @@
       loadFog();
     }
 
+    var saveTimeout;
+    function saveFog(immediate) {
+      clearTimeout(saveTimeout);
+      if (immediate) {
+        canvas.toBlob(function (blob) {
+          fetch("/dm/maps/" + mapId + "/fog/progress", {
+            method: "PUT",
+            body: blob,
+          });
+        }, "image/png");
+      } else {
+        saveTimeout = setTimeout(function () {
+          canvas.toBlob(function (blob) {
+            fetch("/dm/maps/" + mapId + "/fog/progress", {
+              method: "PUT",
+              body: blob,
+            });
+          }, "image/png");
+        }, 100);
+      }
+    }
+
     function loadFog() {
       var img = new Image();
       img.onload = function () {
@@ -353,8 +396,10 @@
         ctx.drawImage(img, 0, 0);
       };
       img.onerror = function () {
+        // Bug 4A: No progress file exists — fill black and flush save immediately
         ctx.fillStyle = "rgba(0, 0, 0, 1)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+        saveFog(true);
       };
       img.src = "/dm/maps/" + mapId + "/fog/progress?t=" + Date.now();
     }
@@ -391,6 +436,8 @@
       drawing = true;
       var pos = canvasCoords(e);
       if (shape === "brush") {
+        // Bug 1: initialize lastBrushPos on mousedown
+        lastBrushPos = pos;
         drawBrush(pos.x, pos.y);
       } else {
         rectStart = pos;
@@ -402,7 +449,23 @@
       if (!drawing) return;
       var pos = canvasCoords(e);
       if (shape === "brush") {
-        drawBrush(pos.x, pos.y);
+        // Bug 1: interpolate between lastBrushPos and pos to fill gaps on fast movement
+        if (lastBrushPos) {
+          var dx = pos.x - lastBrushPos.x;
+          var dy = pos.y - lastBrushPos.y;
+          var dist = Math.sqrt(dx * dx + dy * dy);
+          var steps = Math.ceil(dist / (brushSize / 2));
+          for (var s = 0; s <= steps; s++) {
+            var t = steps === 0 ? 0 : s / steps;
+            drawBrush(
+              lastBrushPos.x + dx * t,
+              lastBrushPos.y + dy * t
+            );
+          }
+        } else {
+          drawBrush(pos.x, pos.y);
+        }
+        lastBrushPos = pos;
       } else if (rectStart && fogSnapshot) {
         ctx.putImageData(fogSnapshot, 0, 0);
         drawRect(rectStart.x, rectStart.y, pos.x, pos.y);
@@ -412,6 +475,7 @@
     canvas.addEventListener("mouseup", function (e) {
       if (!drawing) return;
       drawing = false;
+      lastBrushPos = null;
       if (shape === "rect" && rectStart) {
         if (fogSnapshot) ctx.putImageData(fogSnapshot, 0, 0);
         var pos = canvasCoords(e);
@@ -425,22 +489,10 @@
     canvas.addEventListener("mouseleave", function () {
       if (drawing) {
         drawing = false;
+        lastBrushPos = null;
         if (shape === "brush") saveFog();
       }
     });
-
-    var saveTimeout;
-    function saveFog() {
-      clearTimeout(saveTimeout);
-      saveTimeout = setTimeout(function () {
-        canvas.toBlob(function (blob) {
-          fetch("/dm/maps/" + mapId + "/fog/progress", {
-            method: "PUT",
-            body: blob,
-          });
-        }, "image/png");
-      }, 100);
-    }
 
     // Init token layer on top of fog
     var tokenCtrl = createTokenLayer(container, mapImg, mapId, true);
@@ -481,8 +533,16 @@
           b.classList.toggle("active", b === shapeBtn);
         });
       }
-      if (e.target.closest("[data-fog-push]"))
-        fetch("/dm/maps/" + mapId + "/fog/push", { method: "POST" });
+      // Bug 4B: Flush any pending debounced save before pushing to players
+      if (e.target.closest("[data-fog-push]")) {
+        clearTimeout(saveTimeout);
+        canvas.toBlob(function (blob) {
+          fetch("/dm/maps/" + mapId + "/fog/progress", { method: "PUT", body: blob })
+            .then(function () {
+              return fetch("/dm/maps/" + mapId + "/fog/push", { method: "POST" });
+            });
+        }, "image/png");
+      }
       if (e.target.closest("[data-fog-clear]")) {
         ctx.globalCompositeOperation = "source-over";
         ctx.fillStyle = "rgba(0, 0, 0, 1)";
@@ -502,9 +562,13 @@
       });
     }
 
-    if (mapImg.complete) resize();
+    if (mapImg.complete) requestAnimationFrame(resize);
     else mapImg.addEventListener("load", resize);
-    window.addEventListener("resize", resize);
+    // Bug 2: guard resize listener with alive check
+    window.addEventListener("resize", function () {
+      if (!alive) return;
+      resize();
+    });
 
     return { refreshTokens: tokenCtrl.refresh };
   }
@@ -514,16 +578,30 @@
     var mapImg = container.querySelector(".map-image");
     if (!mapImg) return;
 
+    // Bug 2: Remove any existing fog/token canvases left over from a previous init
+    var zoomWrap = container.querySelector(".zoom-wrap");
+    var oldFog = zoomWrap.querySelector(".fog-canvas");
+    if (oldFog) oldFog.remove();
+    var oldToken = zoomWrap.querySelector(".token-canvas");
+    if (oldToken) oldToken.remove();
+
     var canvas = document.createElement("canvas");
     canvas.className = "fog-canvas";
-    container.querySelector(".zoom-wrap").appendChild(canvas);
+    zoomWrap.appendChild(canvas);
     var ctx = canvas.getContext("2d");
+
+    // Bug 2: alive flag — set false when container is cleaned up by HTMX
+    var alive = true;
+    container.addEventListener("htmx:beforeCleanupElement", function () { alive = false; });
 
     function resize() {
       canvas.width = mapImg.naturalWidth;
       canvas.height = mapImg.naturalHeight;
       canvas.style.width = mapImg.clientWidth + "px";
       canvas.style.height = mapImg.clientHeight + "px";
+      // Bug 3: Pre-fill black before async fog load to prevent revealed flash
+      ctx.fillStyle = "rgba(0,0,0,1)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
       loadFog();
     }
 
@@ -540,9 +618,13 @@
       img.src = "/maps/" + mapId + "/fog?t=" + Date.now();
     }
 
-    if (mapImg.complete) resize();
+    if (mapImg.complete) requestAnimationFrame(resize);
     else mapImg.addEventListener("load", resize);
-    window.addEventListener("resize", resize);
+    // Bug 2: guard resize listener with alive check
+    window.addEventListener("resize", function () {
+      if (!alive) return;
+      resize();
+    });
 
     // Token layer on top (players can always interact with moveable tokens)
     var tokenCtrl = createTokenLayer(container, mapImg, mapId, false);
