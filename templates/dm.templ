@@ -41,6 +41,7 @@ templ DMWithMaps(maps []*store.Map, activeID string, chatName string) {
 			</div>
 			<div id="sse-chat" sse-swap="chatMessage" hx-target="#chat-messages" hx-swap="beforeend"></div>
 			<div hx-trigger="sse:tokenUpdate" style="display:none"></div>
+			<div hx-trigger="sse:notesUpdated" hx-get="/dm/notes" hx-target="#notes-list" style="display:none"></div>
 		</main>
 	}
 }

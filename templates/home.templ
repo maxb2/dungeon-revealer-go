@@ -24,6 +24,7 @@ templ Home(chatName string) {
 			<div id="sse-chat" sse-swap="chatMessage" hx-target="#chat-messages" hx-swap="beforeend"></div>
 			<div hx-trigger="sse:fogUpdate" style="display:none"></div>
 			<div hx-trigger="sse:tokenUpdate" style="display:none"></div>
+			<div hx-trigger="sse:notesUpdated" hx-get="/notes" hx-target="#notes-list" style="display:none"></div>
 			<script>
 				document.body.addEventListener('sse:fogUpdate', function(e) {
 					var view = document.getElementById('player-map-view');

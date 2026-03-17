@@ -15,6 +15,7 @@ type Note struct {
 	Content      string    `json:"content"`
 	IsEntryPoint bool      `json:"isEntryPoint"`
 	IsPublic     bool      `json:"isPublic"`
+	IsLocked     bool      `json:"isLocked"`
 	CreatedAt    time.Time `json:"createdAt"`
 	UpdatedAt    time.Time `json:"updatedAt"`
 }
@@ -71,6 +72,15 @@ func (db *DB) UpdateNote(id, title, content string, isEntryPoint, isPublic bool)
 	return nil
 }
 
+func (db *DB) LockNote(id string, locked bool) error {
+	conn := db.Get()
+	defer db.Put(conn)
+
+	return sqlitex.ExecuteTransient(conn, `UPDATE notes SET is_locked = ? WHERE id = ?`, &sqlitex.ExecOptions{
+		Args: []any{boolToInt(locked), id},
+	})
+}
+
 func (db *DB) DeleteNote(id string) error {
 	conn := db.Get()
 	defer db.Put(conn)
@@ -90,7 +100,7 @@ func (db *DB) GetNote(id string) (*Note, error) {
 
 	var note Note
 	found := false
-	err := sqlitex.ExecuteTransient(conn, `SELECT id, title, content, is_entry_point, is_public, created_at, updated_at FROM notes WHERE id = ?`, &sqlitex.ExecOptions{
+	err := sqlitex.ExecuteTransient(conn, `SELECT id, title, content, is_entry_point, is_public, is_locked, created_at, updated_at FROM notes WHERE id = ?`, &sqlitex.ExecOptions{
 		Args: []any{id},
 		ResultFunc: func(stmt *sqlite.Stmt) error {
 			found = true
@@ -99,8 +109,9 @@ func (db *DB) GetNote(id string) (*Note, error) {
 			note.Content = stmt.ColumnText(2)
 			note.IsEntryPoint = stmt.ColumnInt(3) == 1
 			note.IsPublic = stmt.ColumnInt(4) == 1
-			note.CreatedAt, _ = time.Parse(time.RFC3339, stmt.ColumnText(5))
-			note.UpdatedAt, _ = time.Parse(time.RFC3339, stmt.ColumnText(6))
+			note.IsLocked = stmt.ColumnInt(5) == 1
+			note.CreatedAt, _ = time.Parse(time.RFC3339, stmt.ColumnText(6))
+			note.UpdatedAt, _ = time.Parse(time.RFC3339, stmt.ColumnText(7))
 			return nil
 		},
 	})
@@ -117,9 +128,9 @@ func (db *DB) ListNotes(publicOnly bool) ([]Note, error) {
 	conn := db.Get()
 	defer db.Put(conn)
 
-	query := `SELECT id, title, content, is_entry_point, is_public, created_at, updated_at FROM notes ORDER BY updated_at DESC`
+	query := `SELECT id, title, content, is_entry_point, is_public, is_locked, created_at, updated_at FROM notes ORDER BY updated_at DESC`
 	if publicOnly {
-		query = `SELECT id, title, content, is_entry_point, is_public, created_at, updated_at FROM notes WHERE is_public = 1 AND is_entry_point = 1 ORDER BY updated_at DESC`
+		query = `SELECT id, title, content, is_entry_point, is_public, is_locked, created_at, updated_at FROM notes WHERE is_public = 1 ORDER BY updated_at DESC`
 	}
 
 	var notes []Note
@@ -131,9 +142,10 @@ func (db *DB) ListNotes(publicOnly bool) ([]Note, error) {
 				Content:      stmt.ColumnText(2),
 				IsEntryPoint: stmt.ColumnInt(3) == 1,
 				IsPublic:     stmt.ColumnInt(4) == 1,
+				IsLocked:     stmt.ColumnInt(5) == 1,
 			}
-			n.CreatedAt, _ = time.Parse(time.RFC3339, stmt.ColumnText(5))
-			n.UpdatedAt, _ = time.Parse(time.RFC3339, stmt.ColumnText(6))
+			n.CreatedAt, _ = time.Parse(time.RFC3339, stmt.ColumnText(6))
+			n.UpdatedAt, _ = time.Parse(time.RFC3339, stmt.ColumnText(7))
 			notes = append(notes, n)
 			return nil
 		},
@@ -145,7 +157,7 @@ func (db *DB) SearchNotes(query string, publicOnly bool) ([]Note, error) {
 	conn := db.Get()
 	defer db.Put(conn)
 
-	sql := `SELECT n.id, n.title, n.content, n.is_entry_point, n.is_public, n.created_at, n.updated_at
+	sql := `SELECT n.id, n.title, n.content, n.is_entry_point, n.is_public, n.is_locked, n.created_at, n.updated_at
 		FROM notes_fts f JOIN notes n ON f.rowid = n.rowid
 		WHERE notes_fts MATCH ?`
 	if publicOnly {
@@ -163,9 +175,10 @@ func (db *DB) SearchNotes(query string, publicOnly bool) ([]Note, error) {
 				Content:      stmt.ColumnText(2),
 				IsEntryPoint: stmt.ColumnInt(3) == 1,
 				IsPublic:     stmt.ColumnInt(4) == 1,
+				IsLocked:     stmt.ColumnInt(5) == 1,
 			}
-			n.CreatedAt, _ = time.Parse(time.RFC3339, stmt.ColumnText(5))
-			n.UpdatedAt, _ = time.Parse(time.RFC3339, stmt.ColumnText(6))
+			n.CreatedAt, _ = time.Parse(time.RFC3339, stmt.ColumnText(6))
+			n.UpdatedAt, _ = time.Parse(time.RFC3339, stmt.ColumnText(7))
 			notes = append(notes, n)
 			return nil
 		},

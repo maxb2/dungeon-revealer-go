@@ -62,6 +62,9 @@ templ NoteList(notes []store.Note, isDM bool) {
 					if n.IsEntryPoint {
 						<span class="badge">entry</span>
 					}
+					if n.IsLocked {
+						<span class="badge badge-locked">locked</span>
+					}
 				</button>
 			</li>
 		}
@@ -72,12 +75,21 @@ templ NoteView(note *store.Note, htmlContent string, isDM bool) {
 	<div class="note-view">
 		<div class="note-header">
 			<h3>{ note.Title }</h3>
-			if isDM {
-				<div class="note-actions">
+			<div class="note-actions">
+				if isDM {
 					<button hx-get={ fmt.Sprintf("/dm/notes/%s/edit", note.ID) } hx-target="#notes-content" class="btn-sm">Edit</button>
+					if note.IsLocked {
+						<button hx-post={ fmt.Sprintf("/dm/notes/%s/lock", note.ID) } hx-target="#notes-content" class="btn-sm">Unlock</button>
+					} else {
+						<button hx-post={ fmt.Sprintf("/dm/notes/%s/lock", note.ID) } hx-target="#notes-content" class="btn-sm">Lock</button>
+					}
 					<button hx-delete={ fmt.Sprintf("/dm/notes/%s", note.ID) } hx-target="#notes-list" hx-confirm="Delete this note?" class="btn-sm btn-danger">Delete</button>
-				</div>
-			}
+				} else if note.IsLocked {
+					<span class="badge badge-locked">locked</span>
+				} else {
+					<button hx-get={ fmt.Sprintf("/notes/%s/edit", note.ID) } hx-target="#notes-content" class="btn-sm">Edit</button>
+				}
+			</div>
 		</div>
 		<div class="note-body markdown-body">
 			@templ.Raw(htmlContent)
@@ -142,6 +154,36 @@ templ NoteEdit(note *store.Note) {
 				if note != nil {
 					<button type="button" hx-get={ fmt.Sprintf("/dm/notes/%s", note.ID) } hx-target="#notes-content" class="btn-sm btn-secondary">Cancel</button>
 				}
+			</div>
+		</form>
+	</div>
+}
+
+templ NoteEditPlayer(note *store.Note) {
+	<div class="note-edit">
+		<form
+			hx-post={ fmt.Sprintf("/notes/%s", note.ID) }
+			hx-target="#notes-content"
+		>
+			<input
+				type="text"
+				name="title"
+				placeholder="Note title"
+				value={ note.Title }
+				required
+				class="note-title-input"
+			/>
+			<textarea
+				name="content"
+				placeholder="Markdown content..."
+				rows="12"
+				class="note-content-input"
+			>
+				{ note.Content }
+			</textarea>
+			<div class="note-form-actions">
+				<button type="submit" class="btn-sm">Save</button>
+				<button type="button" hx-get={ fmt.Sprintf("/notes/%s", note.ID) } hx-target="#notes-content" class="btn-sm btn-secondary">Cancel</button>
 			</div>
 		</form>
 	</div>
