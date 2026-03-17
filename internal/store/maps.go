@@ -23,6 +23,8 @@ type Token struct {
 	Visible   bool    `json:"visible"`
 	Moveable  bool    `json:"moveable"`
 	ImageID   string  `json:"imageId,omitempty"`
+	Shape     string  `json:"shape,omitempty"`
+	LabelSize float64 `json:"labelSize,omitempty"`
 }
 
 type Map struct {

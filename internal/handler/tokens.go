@@ -61,6 +61,14 @@ func (h *TokenHandler) CreateToken(w http.ResponseWriter, r *http.Request) {
 	}
 	t.Visible = r.FormValue("visible") == "true"
 	t.Moveable = r.FormValue("moveable") == "true"
+	t.Shape = r.FormValue("shape")
+	if t.Shape != "circle" && t.Shape != "square" {
+		t.Shape = ""
+	}
+	t.LabelSize, _ = strconv.ParseFloat(r.FormValue("labelSize"), 64)
+	if t.LabelSize < 0 {
+		t.LabelSize = 0
+	}
 
 	token, err := h.maps.AddToken(mapID, t)
 	if err != nil {
@@ -134,6 +142,16 @@ func (h *TokenHandler) UpdateToken(w http.ResponseWriter, r *http.Request) {
 		}
 		if r.FormValue("moveable") != "" {
 			existing.Moveable = r.FormValue("moveable") == "true"
+		}
+		if v := r.FormValue("shape"); v == "circle" || v == "square" {
+			existing.Shape = v
+		} else if r.FormValue("shape") == "" {
+			existing.Shape = ""
+		}
+		if v := r.FormValue("labelSize"); v != "" {
+			if ls, err := strconv.ParseFloat(v, 64); err == nil && ls >= 0 {
+				existing.LabelSize = ls
+			}
 		}
 	}
 

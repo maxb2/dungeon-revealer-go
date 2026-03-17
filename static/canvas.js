@@ -5,7 +5,7 @@
   // --- Zoom/Pan Controller ---
   function createZoomController(canvasWrap) {
     var zoomWrap = canvasWrap.querySelector(".zoom-wrap");
-    if (!zoomWrap) return;
+    if (!zoomWrap) return { isSpaceDown: function() { return false; } };
 
     var scale = 1;
     var panX = 0;
@@ -17,6 +17,8 @@
     var panStartY = 0;
     var lastPanX = 0;
     var lastPanY = 0;
+    var spaceDown = false;
+    var spacePanning = false;
 
     function applyTransform() {
       zoomWrap.style.transform = "scale(" + scale + ") translate(" + panX + "px, " + panY + "px)";
@@ -43,7 +45,7 @@
       applyTransform();
     }, { passive: false });
 
-    // Middle-mouse drag to pan
+    // Middle-mouse drag or Space+left-drag to pan
     canvasWrap.addEventListener("mousedown", function (e) {
       if (e.button === 1) {
         e.preventDefault();
@@ -52,6 +54,15 @@
         panStartY = e.clientY;
         lastPanX = panX;
         lastPanY = panY;
+      } else if (e.button === 0 && spaceDown) {
+        e.preventDefault();
+        panning = true;
+        spacePanning = true;
+        panStartX = e.clientX;
+        panStartY = e.clientY;
+        lastPanX = panX;
+        lastPanY = panY;
+        canvasWrap.style.cursor = "grabbing";
       }
     });
 
@@ -64,6 +75,11 @@
 
     window.addEventListener("mouseup", function (e) {
       if (e.button === 1) panning = false;
+      if (e.button === 0 && spacePanning) {
+        panning = false;
+        spacePanning = false;
+        canvasWrap.style.cursor = spaceDown ? "grab" : "";
+      }
     });
 
     // Double-click to reset
@@ -78,10 +94,33 @@
     canvasWrap.addEventListener("auxclick", function (e) {
       if (e.button === 1) e.preventDefault();
     });
+
+    document.addEventListener("keydown", function (e) {
+      if (e.code === "Space" && !e.repeat
+          && document.activeElement.tagName !== "INPUT"
+          && document.activeElement.tagName !== "TEXTAREA") {
+        e.preventDefault();
+        spaceDown = true;
+        canvasWrap.style.cursor = "grab";
+      }
+    });
+
+    document.addEventListener("keyup", function (e) {
+      if (e.code === "Space") {
+        spaceDown = false;
+        if (spacePanning) {
+          panning = false;
+          spacePanning = false;
+        }
+        canvasWrap.style.cursor = "";
+      }
+    });
+
+    return { isSpaceDown: function() { return spaceDown; } };
   }
 
   // --- Token Layer (shared between DM and Player) ---
-  function createTokenLayer(container, mapImg, mapId, isDM) {
+  function createTokenLayer(container, mapImg, mapId, isDM, isSpaceDown) {
     var canvas = document.createElement("canvas");
     canvas.className = "token-canvas";
     container.querySelector(".zoom-wrap").appendChild(canvas);
@@ -122,7 +161,11 @@
         if (!isDM && !t.visible) return;
         var alpha = isDM && !t.visible ? 0.4 : 0.8;
         ctx.beginPath();
-        ctx.arc(t.x, t.y, t.radius, 0, Math.PI * 2);
+        if (t.shape === "square") {
+          ctx.rect(t.x - t.radius, t.y - t.radius, t.radius * 2, t.radius * 2);
+        } else {
+          ctx.arc(t.x, t.y, t.radius, 0, Math.PI * 2);
+        }
         ctx.fillStyle = t.color || "#e94560";
         ctx.globalAlpha = alpha;
         ctx.fill();
@@ -130,8 +173,9 @@
         ctx.lineWidth = 2;
         ctx.stroke();
         if (t.label) {
+          var fontSize = (t.labelSize > 0) ? t.labelSize : Math.max(12, t.radius * 0.6);
           ctx.fillStyle = "#fff";
-          ctx.font = Math.max(12, t.radius * 0.6) + "px sans-serif";
+          ctx.font = fontSize + "px sans-serif";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
           ctx.fillText(t.label, t.x, t.y);
@@ -156,10 +200,13 @@
       for (var i = tokens.length - 1; i >= 0; i--) {
         var t = tokens[i];
         if (!isDM && !t.visible) continue;
-        var dx = pos.x - t.x;
-        var dy = pos.y - t.y;
-        if (dx * dx + dy * dy <= t.radius * t.radius) {
-          return t;
+        if (t.shape === "square") {
+          if (pos.x >= t.x - t.radius && pos.x <= t.x + t.radius &&
+              pos.y >= t.y - t.radius && pos.y <= t.y + t.radius) return t;
+        } else {
+          var dx = pos.x - t.x;
+          var dy = pos.y - t.y;
+          if (dx * dx + dy * dy <= t.radius * t.radius) return t;
         }
       }
       return null;
@@ -172,6 +219,7 @@
     // --- Mouse handlers (work for both DM token mode and player token dragging) ---
     canvas.addEventListener("mousedown", function (e) {
       if (e.button !== 0) return;
+      if (isSpaceDown && isSpaceDown()) return;
       var pos = coords(e);
       var token = hitTest(pos);
       if (token && (isDM || token.moveable)) {
@@ -220,20 +268,6 @@
       dragging = null;
     });
 
-    // Right-click to delete token (DM only)
-    if (isDM) {
-      canvas.addEventListener("contextmenu", function (e) {
-        var pos = coords(e);
-        var token = hitTest(pos);
-        if (token) {
-          e.preventDefault();
-          fetch("/dm/maps/" + mapId + "/tokens/" + token.id, {
-            method: "DELETE",
-          }).then(function () { loadTokens(); });
-        }
-      });
-    }
-
     function getToolbarValue(attr, fallback) {
       var el = container.querySelector("[" + attr + "]");
       if (!el) return fallback;
@@ -250,6 +284,7 @@
       body.set("color", getToolbarValue("data-token-color", "#e94560"));
       body.set("visible", getToolbarValue("data-token-visible", false) ? "true" : "false");
       body.set("moveable", getToolbarValue("data-token-moveable", true) ? "true" : "false");
+      body.set("shape", getToolbarValue("data-token-shape", ""));
       fetch("/dm/maps/" + mapId + "/tokens", {
         method: "POST",
         body: body,
@@ -270,10 +305,17 @@
       popup.className = "token-popup";
       popup.style.left = (e.clientX - rect.left + 10) + "px";
       popup.style.top = (e.clientY - rect.top + 10) + "px";
+
+      var shapeCircleSelected = (!token.shape || token.shape === "circle") ? " selected" : "";
+      var shapeSquareSelected = token.shape === "square" ? " selected" : "";
+      var labelSizeVal = token.labelSize > 0 ? token.labelSize : 0;
+
       popup.innerHTML =
         '<label>Name <input type="text" data-field="label" value="' + (token.label || "").replace(/"/g, "&quot;") + '" class="token-input-text"/></label>' +
         '<label>Color <input type="color" data-field="color" value="' + (token.color || "#e94560") + '"/></label>' +
-        '<label>Size <input type="range" data-field="radius" min="5" max="100" value="' + (token.radius || 20) + '"/></label>' +
+        '<label>Size <input type="range" data-field="radius" min="5" max="300" value="' + (token.radius || 20) + '"/></label>' +
+        '<label>Shape <select data-field="shape"><option value=""' + shapeCircleSelected + '>Circle</option><option value="square"' + shapeSquareSelected + '>Square</option></select></label>' +
+        '<label>Label px <input type="range" data-field="labelSize" min="0" max="60" value="' + labelSizeVal + '"/> <span class="token-popup-hint">(0=auto)</span></label>' +
         '<label><input type="checkbox" data-field="visible"' + (token.visible ? " checked" : "") + '/> Visible</label>' +
         '<label><input type="checkbox" data-field="moveable"' + (token.moveable ? " checked" : "") + '/> Moveable</label>' +
         '<div class="token-popup-actions">' +
@@ -288,6 +330,8 @@
         body.set("label", popup.querySelector('[data-field="label"]').value);
         body.set("color", popup.querySelector('[data-field="color"]').value);
         body.set("radius", popup.querySelector('[data-field="radius"]').value);
+        body.set("shape", popup.querySelector('[data-field="shape"]').value);
+        body.set("labelSize", popup.querySelector('[data-field="labelSize"]').value);
         body.set("visible", popup.querySelector('[data-field="visible"]').checked ? "true" : "false");
         body.set("moveable", popup.querySelector('[data-field="moveable"]').checked ? "true" : "false");
         fetch("/dm/maps/" + mapId + "/tokens/" + token.id, {
@@ -299,7 +343,22 @@
         });
       });
 
-      popup.querySelector("[data-popup-delete]").addEventListener("click", function () {
+      var confirmingDelete = false;
+      var deleteBtn = popup.querySelector("[data-popup-delete]");
+      deleteBtn.addEventListener("click", function () {
+        if (!confirmingDelete) {
+          confirmingDelete = true;
+          deleteBtn.textContent = "Confirm Delete?";
+          deleteBtn.style.background = "#c0392b";
+          setTimeout(function () {
+            if (confirmingDelete) {
+              confirmingDelete = false;
+              deleteBtn.textContent = "Delete";
+              deleteBtn.style.background = "";
+            }
+          }, 3000);
+          return;
+        }
         fetch("/dm/maps/" + mapId + "/tokens/" + token.id, {
           method: "DELETE",
         }).then(function () {
@@ -340,11 +399,19 @@
     if (oldFog) oldFog.remove();
     var oldToken = zoomWrap.querySelector(".token-canvas");
     if (oldToken) oldToken.remove();
+    var oldCursor = zoomWrap.querySelector(".cursor-canvas");
+    if (oldCursor) oldCursor.remove();
 
     var canvas = document.createElement("canvas");
     canvas.className = "fog-canvas";
     zoomWrap.appendChild(canvas);
     var ctx = canvas.getContext("2d");
+
+    // Brush cursor indicator canvas
+    var cursorCanvas = document.createElement("canvas");
+    cursorCanvas.className = "cursor-canvas";
+    zoomWrap.appendChild(cursorCanvas);
+    var cursorCtx = cursorCanvas.getContext("2d");
 
     var tool = "reveal";
     var shape = "brush";
@@ -364,7 +431,24 @@
       canvas.height = mapImg.naturalHeight;
       canvas.style.width = mapImg.clientWidth + "px";
       canvas.style.height = mapImg.clientHeight + "px";
+      cursorCanvas.width = mapImg.naturalWidth;
+      cursorCanvas.height = mapImg.naturalHeight;
+      cursorCanvas.style.width = mapImg.clientWidth + "px";
+      cursorCanvas.style.height = mapImg.clientHeight + "px";
       loadFog();
+    }
+
+    function drawCursorAt(x, y) {
+      cursorCtx.clearRect(0, 0, cursorCanvas.width, cursorCanvas.height);
+      cursorCtx.beginPath();
+      cursorCtx.arc(x, y, brushSize, 0, Math.PI * 2);
+      cursorCtx.strokeStyle = "rgba(255,255,255,0.8)";
+      cursorCtx.lineWidth = 2;
+      cursorCtx.stroke();
+    }
+
+    function clearCursor() {
+      cursorCtx.clearRect(0, 0, cursorCanvas.width, cursorCanvas.height);
     }
 
     var saveTimeout;
@@ -431,8 +515,12 @@
       );
     }
 
+    // Zoom/pan (init first so isSpaceDown is available)
+    var zoomCtrl = createZoomController(container.querySelector(".canvas-wrap"));
+
     canvas.addEventListener("mousedown", function (e) {
       if (e.button !== 0) return;
+      if (zoomCtrl.isSpaceDown()) return;
       drawing = true;
       var pos = canvasCoords(e);
       if (shape === "brush") {
@@ -446,8 +534,15 @@
     });
 
     canvas.addEventListener("mousemove", function (e) {
-      if (!drawing) return;
       var pos = canvasCoords(e);
+      if (shape === "brush") {
+        drawCursorAt(pos.x, pos.y);
+        canvas.style.cursor = "none";
+      } else {
+        clearCursor();
+        canvas.style.cursor = "crosshair";
+      }
+      if (!drawing) return;
       if (shape === "brush") {
         // Bug 1: interpolate between lastBrushPos and pos to fill gaps on fast movement
         if (lastBrushPos) {
@@ -487,6 +582,7 @@
     });
 
     canvas.addEventListener("mouseleave", function () {
+      clearCursor();
       if (drawing) {
         drawing = false;
         lastBrushPos = null;
@@ -495,10 +591,7 @@
     });
 
     // Init token layer on top of fog
-    var tokenCtrl = createTokenLayer(container, mapImg, mapId, true);
-
-    // Zoom/pan
-    createZoomController(container.querySelector(".canvas-wrap"));
+    var tokenCtrl = createTokenLayer(container, mapImg, mapId, true, zoomCtrl.isSpaceDown);
 
     // --- Toolbar event handling ---
     var fogTools = container.querySelector(".fog-tools");
@@ -514,6 +607,7 @@
         });
         tokenCtrl.setMode(mode);
         canvas.style.pointerEvents = mode === "fog" ? "auto" : "none";
+        cursorCanvas.style.display = mode === "fog" ? "" : "none";
         if (fogTools) fogTools.style.display = mode === "fog" ? "" : "none";
         if (tokenTools) tokenTools.style.display = mode === "tokens" ? "" : "none";
         return;
@@ -532,6 +626,12 @@
         container.querySelectorAll("[data-fog-shape]").forEach(function (b) {
           b.classList.toggle("active", b === shapeBtn);
         });
+        if (shape === "brush") {
+          canvas.style.cursor = "none";
+        } else {
+          clearCursor();
+          canvas.style.cursor = "crosshair";
+        }
       }
       // Bug 4B: Flush any pending debounced save before pushing to players
       if (e.target.closest("[data-fog-push]")) {
@@ -626,11 +726,11 @@
       resize();
     });
 
-    // Token layer on top (players can always interact with moveable tokens)
-    var tokenCtrl = createTokenLayer(container, mapImg, mapId, false);
+    // Zoom/pan (init first so isSpaceDown is available for token layer)
+    var zoomCtrl = createZoomController(container.querySelector(".canvas-wrap"));
 
-    // Zoom/pan
-    createZoomController(container.querySelector(".canvas-wrap"));
+    // Token layer on top (players can always interact with moveable tokens)
+    var tokenCtrl = createTokenLayer(container, mapImg, mapId, false, zoomCtrl.isSpaceDown);
 
     return {
       refresh: loadFog,

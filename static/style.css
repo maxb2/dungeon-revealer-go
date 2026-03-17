@@ -293,6 +293,14 @@ body {
   z-index: 2;
 }
 
+.cursor-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
 /* Fog Toolbar */
 .fog-toolbar {
   display: flex;
@@ -740,6 +748,20 @@ body {
 
 .token-popup input[type="range"] {
   width: 80px;
+}
+
+.token-popup select {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  padding: 0.1rem 0.2rem;
+}
+
+.token-popup-hint {
+  font-size: 0.7rem;
+  color: var(--text-muted);
 }
 
 .token-popup-actions {
