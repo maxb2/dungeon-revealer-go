@@ -421,6 +421,7 @@
     var fogSnapshot = null;
     // Bug 1: track last brush position for interpolation
     var lastBrushPos = null;
+    var lastMousePos = null;
 
     // Bug 2: alive flag — set false when container is cleaned up by HTMX
     var alive = true;
@@ -518,6 +519,26 @@
     // Zoom/pan (init first so isSpaceDown is available)
     var zoomCtrl = createZoomController(container.querySelector(".canvas-wrap"));
 
+    // Immediately update cursor when Space is pressed/released (don't wait for mousemove)
+    document.addEventListener("keydown", function (e) {
+      if (e.code === "Space" && !e.repeat
+          && document.activeElement.tagName !== "INPUT"
+          && document.activeElement.tagName !== "TEXTAREA") {
+        clearCursor();
+        canvas.style.cursor = "";
+      }
+    });
+    document.addEventListener("keyup", function (e) {
+      if (e.code === "Space") {
+        if (shape === "brush" && lastMousePos) {
+          drawCursorAt(lastMousePos.x, lastMousePos.y);
+          canvas.style.cursor = "none";
+        } else {
+          canvas.style.cursor = "crosshair";
+        }
+      }
+    });
+
     canvas.addEventListener("mousedown", function (e) {
       if (e.button !== 0) return;
       if (zoomCtrl.isSpaceDown()) return;
@@ -535,12 +556,18 @@
 
     canvas.addEventListener("mousemove", function (e) {
       var pos = canvasCoords(e);
+      lastMousePos = pos;
       if (shape === "brush") {
-        drawCursorAt(pos.x, pos.y);
-        canvas.style.cursor = "none";
+        if (zoomCtrl.isSpaceDown()) {
+          clearCursor();
+          canvas.style.cursor = "";
+        } else {
+          drawCursorAt(pos.x, pos.y);
+          canvas.style.cursor = "none";
+        }
       } else {
         clearCursor();
-        canvas.style.cursor = "crosshair";
+        canvas.style.cursor = zoomCtrl.isSpaceDown() ? "" : "crosshair";
       }
       if (!drawing) return;
       if (shape === "brush") {
