@@ -461,19 +461,6 @@
       lastCursorX = -1; lastCursorY = -1;
     }
 
-    var pendingCursorX = 0, pendingCursorY = 0, cursorRafPending = false;
-
-    function scheduleCursorDraw(x, y) {
-      pendingCursorX = x;
-      pendingCursorY = y;
-      if (!cursorRafPending) {
-        cursorRafPending = true;
-        requestAnimationFrame(function () {
-          cursorRafPending = false;
-          drawCursorAt(pendingCursorX, pendingCursorY);
-        });
-      }
-    }
 
     var saveTimeout;
     function saveFog(immediate) {
@@ -541,6 +528,7 @@
 
     // Zoom/pan (init first so isSpaceDown is available)
     var zoomCtrl = createZoomController(container.querySelector(".canvas-wrap"));
+    var canvasWrapEl = container.querySelector(".canvas-wrap");
 
     // Immediately update cursor when Space is pressed/released (don't wait for mousemove)
     document.addEventListener("keydown", function (e) {
@@ -556,8 +544,10 @@
         if (shape === "brush" && lastMousePos) {
           drawCursorAt(lastMousePos.x, lastMousePos.y);
           canvas.style.cursor = "none";
+          canvasWrapEl.style.cursor = "none";
         } else {
           canvas.style.cursor = "crosshair";
+          canvasWrapEl.style.cursor = "crosshair";
         }
       }
     });
@@ -585,7 +575,7 @@
           clearCursor();
           canvas.style.cursor = "";
         } else {
-          scheduleCursorDraw(pos.x, pos.y);
+          drawCursorAt(pos.x, pos.y);
         }
       } else {
         clearCursor();
@@ -632,6 +622,7 @@
 
     canvas.addEventListener("mouseleave", function () {
       clearCursor();
+      canvasWrapEl.style.cursor = "";
       if (drawing) {
         drawing = false;
         lastBrushPos = null;
@@ -657,6 +648,7 @@
         tokenCtrl.setMode(mode);
         canvas.style.pointerEvents = mode === "fog" ? "auto" : "none";
         cursorCanvas.style.display = mode === "fog" ? "" : "none";
+        if (mode !== "fog") canvasWrapEl.style.cursor = "";
         if (fogTools) fogTools.style.display = mode === "fog" ? "" : "none";
         if (tokenTools) tokenTools.style.display = mode === "tokens" ? "" : "none";
         return;
@@ -677,9 +669,11 @@
         });
         if (shape === "brush") {
           canvas.style.cursor = "none";
+          canvasWrapEl.style.cursor = "none";
         } else {
           clearCursor();
           canvas.style.cursor = "crosshair";
+          canvasWrapEl.style.cursor = "crosshair";
         }
       }
       // Bug 4B: Flush any pending debounced save before pushing to players
