@@ -439,8 +439,16 @@
       loadFog();
     }
 
+    var lastCursorX = -1, lastCursorY = -1;
+
     function drawCursorAt(x, y) {
-      cursorCtx.clearRect(0, 0, cursorCanvas.width, cursorCanvas.height);
+      var pad = brushSize + 2;
+      if (lastCursorX >= 0) {
+        cursorCtx.clearRect(lastCursorX - pad, lastCursorY - pad, pad * 2, pad * 2);
+      } else {
+        cursorCtx.clearRect(0, 0, cursorCanvas.width, cursorCanvas.height);
+      }
+      lastCursorX = x; lastCursorY = y;
       cursorCtx.beginPath();
       cursorCtx.arc(x, y, brushSize, 0, Math.PI * 2);
       cursorCtx.strokeStyle = "rgba(255,255,255,0.8)";
@@ -450,6 +458,21 @@
 
     function clearCursor() {
       cursorCtx.clearRect(0, 0, cursorCanvas.width, cursorCanvas.height);
+      lastCursorX = -1; lastCursorY = -1;
+    }
+
+    var pendingCursorX = 0, pendingCursorY = 0, cursorRafPending = false;
+
+    function scheduleCursorDraw(x, y) {
+      pendingCursorX = x;
+      pendingCursorY = y;
+      if (!cursorRafPending) {
+        cursorRafPending = true;
+        requestAnimationFrame(function () {
+          cursorRafPending = false;
+          drawCursorAt(pendingCursorX, pendingCursorY);
+        });
+      }
     }
 
     var saveTimeout;
@@ -562,8 +585,7 @@
           clearCursor();
           canvas.style.cursor = "";
         } else {
-          drawCursorAt(pos.x, pos.y);
-          canvas.style.cursor = "none";
+          scheduleCursorDraw(pos.x, pos.y);
         }
       } else {
         clearCursor();
