@@ -73,6 +73,16 @@ Cross-compiled binaries are output to `dist/`:
 - `darwin/arm64`
 - `windows/amd64`
 
+## Releases
+
+Every push to `main` automatically creates a new version tag and GitHub release. The version is bumped based on the commit message:
+
+- **Patch** (default): `v1.0.0` → `v1.0.1`
+- **Minor** — include `[minor]` in the commit message: `v1.0.1` → `v1.1.0`
+- **Major** — include `[major]` in the commit message: `v1.1.0` → `v2.0.0`
+
+Each release builds cross-platform binaries and publishes a Docker image to GHCR.
+
 ## How It Works
 
 1. The DM logs in with the DM password and uploads a map image
