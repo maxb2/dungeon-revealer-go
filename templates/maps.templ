@@ -56,6 +56,7 @@ templ MapAreaImage(m *store.Map) {
 		<div class="fog-toolbar">
 			<button data-dm-mode="fog" class="active">Fog</button>
 			<button data-dm-mode="tokens">Tokens</button>
+			<button data-dm-mode="walls">Walls</button>
 			<span class="toolbar-sep"></span>
 			<span class="fog-tools">
 				<button data-fog-tool="reveal" class="active">Reveal</button>
@@ -73,10 +74,21 @@ templ MapAreaImage(m *store.Map) {
 				<label><input type="checkbox" data-token-visible/> Visible</label>
 				<label><input type="checkbox" data-token-moveable checked/> Moveable</label>
 			</span>
+			<span class="wall-tools" style="display:none">
+				<span class="toolbar-hint">Click to add vertices. Click first vertex or double-click to close. Esc to cancel. Click a wall to delete.</span>
+			</span>
 			<span class="toolbar-sep"></span>
 			<button data-fog-push class="push-btn">Push to Players</button>
 			<button data-fog-clear>Reset (Hide All)</button>
 			<button data-fog-reveal-all>Reveal All</button>
+			<span class="toolbar-sep"></span>
+			<label class="toolbar-label">
+				if m.DynamicLighting {
+					<input type="checkbox" data-toggle-dynamic-lighting checked/> Dynamic Lighting
+				} else {
+					<input type="checkbox" data-toggle-dynamic-lighting/> Dynamic Lighting
+				}
+			</label>
 		</div>
 		<div class="canvas-wrap">
 			<div class="zoom-wrap">
@@ -111,6 +123,12 @@ templ PlayerMapImage(m *store.Map) {
 				var ctrl = DungeonRevealer.initPlayerCanvas(container, container.dataset.mapId);
 				document.body.addEventListener('sse:fogUpdate', function() {
 					if (ctrl) ctrl.refresh();
+				});
+				document.body.addEventListener('sse:wallUpdate', function() {
+					if (ctrl) ctrl.refreshWalls();
+				});
+				document.body.addEventListener('sse:mapSettingsUpdate', function() {
+					if (ctrl) ctrl.refreshSettings();
 				});
 			})();
 		</script>

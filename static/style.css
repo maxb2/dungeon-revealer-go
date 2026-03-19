@@ -271,6 +271,14 @@ body {
   transform-origin: 0 0;
 }
 
+.lighting-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
 .fog-canvas {
   position: absolute;
   top: 0;
@@ -293,12 +301,20 @@ body {
   z-index: 2;
 }
 
-.cursor-canvas {
+.wall-canvas {
   position: absolute;
   top: 0;
   left: 0;
   pointer-events: none;
   z-index: 3;
+}
+
+.cursor-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 4;
   cursor: none;
 }
 
@@ -360,6 +376,20 @@ body {
   width: 1px;
   height: 1.2rem;
   background: var(--border);
+}
+
+.toolbar-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.toolbar-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
 }
 
 /* Media */
