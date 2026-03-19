@@ -14,25 +14,38 @@ import (
 )
 
 type Token struct {
-	ID        string  `json:"id"`
-	X         float64 `json:"x"`
-	Y         float64 `json:"y"`
-	Radius    float64 `json:"radius"`
-	Label     string  `json:"label"`
-	Color     string  `json:"color"`
-	Visible   bool    `json:"visible"`
-	Moveable  bool    `json:"moveable"`
-	ImageID   string  `json:"imageId,omitempty"`
-	Shape     string  `json:"shape,omitempty"`
-	LabelSize float64 `json:"labelSize,omitempty"`
+	ID          string  `json:"id"`
+	X           float64 `json:"x"`
+	Y           float64 `json:"y"`
+	Radius      float64 `json:"radius"`
+	Label       string  `json:"label"`
+	Color       string  `json:"color"`
+	Visible     bool    `json:"visible"`
+	Moveable    bool    `json:"moveable"`
+	ImageID     string  `json:"imageId,omitempty"`
+	Shape       string  `json:"shape,omitempty"`
+	LabelSize   float64 `json:"labelSize,omitempty"`
+	SightRadius float64 `json:"sightRadius,omitempty"`
+}
+
+type WallPoint struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+}
+
+type Wall struct {
+	ID     string      `json:"id"`
+	Points []WallPoint `json:"points"`
 }
 
 type Map struct {
-	ID        string    `json:"id"`
-	Title     string    `json:"title"`
-	Ext       string    `json:"ext"`
-	Tokens    []Token   `json:"tokens,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID             string    `json:"id"`
+	Title          string    `json:"title"`
+	Ext            string    `json:"ext"`
+	Tokens         []Token   `json:"tokens,omitempty"`
+	Walls          []Wall    `json:"walls,omitempty"`
+	DynamicLighting bool     `json:"dynamicLighting,omitempty"`
+	CreatedAt      time.Time `json:"createdAt"`
 }
 
 type MapStore struct {
@@ -221,6 +234,64 @@ func (s *MapStore) GetVisibleTokens(mapID string) ([]Token, error) {
 		}
 	}
 	return visible, nil
+}
+
+func (s *MapStore) AddWall(mapID string, w Wall) (*Wall, error) {
+	m, err := s.readMeta(mapID)
+	if err != nil {
+		return nil, err
+	}
+	w.ID = xid.New().String()
+	m.Walls = append(m.Walls, w)
+	if err := s.writeMeta(m); err != nil {
+		return nil, err
+	}
+	return &w, nil
+}
+
+func (s *MapStore) DeleteWall(mapID, wallID string) error {
+	m, err := s.readMeta(mapID)
+	if err != nil {
+		return err
+	}
+	for i, w := range m.Walls {
+		if w.ID == wallID {
+			m.Walls = append(m.Walls[:i], m.Walls[i+1:]...)
+			return s.writeMeta(m)
+		}
+	}
+	return fmt.Errorf("wall %s not found", wallID)
+}
+
+func (s *MapStore) UpdateWall(mapID, wallID string, points []WallPoint) error {
+	m, err := s.readMeta(mapID)
+	if err != nil {
+		return err
+	}
+	for i, w := range m.Walls {
+		if w.ID == wallID {
+			m.Walls[i].Points = points
+			return s.writeMeta(m)
+		}
+	}
+	return fmt.Errorf("wall %s not found", wallID)
+}
+
+func (s *MapStore) GetWalls(mapID string) ([]Wall, error) {
+	m, err := s.readMeta(mapID)
+	if err != nil {
+		return nil, err
+	}
+	return m.Walls, nil
+}
+
+func (s *MapStore) SetDynamicLighting(mapID string, enabled bool) error {
+	m, err := s.readMeta(mapID)
+	if err != nil {
+		return err
+	}
+	m.DynamicLighting = enabled
+	return s.writeMeta(m)
 }
 
 func (s *MapStore) writeMeta(m *Map) error {

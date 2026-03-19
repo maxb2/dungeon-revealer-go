@@ -1,4 +1,4 @@
-// Fog-of-War Canvas + Token Layer
+// Fog-of-War Canvas + Token Layer + Wall Layer + Dynamic Lighting
 (function () {
   "use strict";
 
@@ -119,8 +119,111 @@
     return { isSpaceDown: function() { return spaceDown; } };
   }
 
+  // --- Visibility helpers for dynamic lighting ---
+
+  // Returns t (ray parameter at intersection) or null.
+  // Ray: (ox,oy) + t*(dx,dy); Segment: (x1,y1)+(x2-x1,y2-y1)*s for s in [0,1]
+  function raySegmentIntersect(ox, oy, dx, dy, x1, y1, x2, y2) {
+    var ex = x2 - x1, ey = y2 - y1;
+    var det = ex * dy - dx * ey;
+    if (Math.abs(det) < 1e-10) return null;
+    var rx = x1 - ox, ry = y1 - oy;
+    var t = (ex * ry - ey * rx) / det;
+    var s = (dx * ry - dy * rx) / det;
+    if (t >= 0 && s >= 0 && s <= 1) return t;
+    return null;
+  }
+
+  // Expand polygon walls to {x1,y1,x2,y2} edge segments for the visibility algorithm.
+  function getWallSegments(walls) {
+    var segs = [];
+    walls.forEach(function (w) {
+      if (!w.points || w.points.length < 2) return;
+      for (var i = 0; i < w.points.length; i++) {
+        var p1 = w.points[i];
+        var p2 = w.points[(i + 1) % w.points.length];
+        segs.push({ x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y });
+      }
+    });
+    return segs;
+  }
+
+  // True if the line segment (wall.x1,y1)-(wall.x2,y2) intersects or is inside the circle.
+  function segmentIntersectsCircle(cx, cy, r, wall) {
+    var dx = wall.x2 - wall.x1, dy = wall.y2 - wall.y1;
+    var fx = wall.x1 - cx, fy = wall.y1 - cy;
+    var a = dx * dx + dy * dy;
+    if (a < 1e-10) {
+      return fx * fx + fy * fy <= r * r;
+    }
+    var b = 2 * (fx * dx + fy * dy);
+    var c = fx * fx + fy * fy - r * r;
+    var disc = b * b - 4 * a * c;
+    if (disc < 0) return false;
+    var sqrtDisc = Math.sqrt(disc);
+    var t1 = (-b - sqrtDisc) / (2 * a);
+    var t2 = (-b + sqrtDisc) / (2 * a);
+    return (t1 >= 0 && t1 <= 1) || (t2 >= 0 && t2 <= 1) || (t1 < 0 && t2 > 1);
+  }
+
+  // Minimum distance from pos to wall segment.
+  function distToSegment(pos, wall) {
+    var dx = wall.x2 - wall.x1, dy = wall.y2 - wall.y1;
+    var len2 = dx * dx + dy * dy;
+    if (len2 < 1e-10) {
+      var ex = pos.x - wall.x1, ey = pos.y - wall.y1;
+      return Math.sqrt(ex * ex + ey * ey);
+    }
+    var t = ((pos.x - wall.x1) * dx + (pos.y - wall.y1) * dy) / len2;
+    t = Math.max(0, Math.min(1, t));
+    var nx = wall.x1 + t * dx - pos.x;
+    var ny = wall.y1 + t * dy - pos.y;
+    return Math.sqrt(nx * nx + ny * ny);
+  }
+
+  // Compute visibility polygon using endpoint-visibility (Amit Patel) algorithm.
+  // Returns array of {x, y, angle} sorted by angle.
+  function computeVisibilityPolygon(ox, oy, sightRadius, walls) {
+    var eps = 0.0001;
+
+    // Expand polygon walls to edge segments, then filter to sight range
+    var activeWalls = getWallSegments(walls).filter(function (w) {
+      return segmentIntersectsCircle(ox, oy, sightRadius, w);
+    });
+
+    // Start with evenly-spaced angles around the full circle for a smooth circular boundary
+    var angles = [];
+    var circleSteps = 72; // one sample every 5 degrees
+    for (var i = 0; i < circleSteps; i++) {
+      angles.push((i / circleSteps) * 2 * Math.PI - Math.PI);
+    }
+
+    // Add tight triples around each wall endpoint to get sharp shadow edges
+    activeWalls.forEach(function (w) {
+      var a1 = Math.atan2(w.y1 - oy, w.x1 - ox);
+      var a2 = Math.atan2(w.y2 - oy, w.x2 - ox);
+      angles.push(a1 - eps, a1, a1 + eps, a2 - eps, a2, a2 + eps);
+    });
+
+    // For each angle cast a ray; default distance is sightRadius (circle boundary)
+    var points = [];
+    angles.forEach(function (angle) {
+      var dx = Math.cos(angle);
+      var dy = Math.sin(angle);
+      var minT = sightRadius;
+      activeWalls.forEach(function (w) {
+        var t = raySegmentIntersect(ox, oy, dx, dy, w.x1, w.y1, w.x2, w.y2);
+        if (t !== null && t < minT) minT = t;
+      });
+      points.push({ x: ox + dx * minT, y: oy + dy * minT, angle: angle });
+    });
+
+    points.sort(function (a, b) { return a.angle - b.angle; });
+    return points;
+  }
+
   // --- Token Layer (shared between DM and Player) ---
-  function createTokenLayer(container, mapImg, mapId, isDM, isSpaceDown) {
+  function createTokenLayer(container, mapImg, mapId, isDM, isSpaceDown, onTokensLoaded) {
     var canvas = document.createElement("canvas");
     canvas.className = "token-canvas";
     container.querySelector(".zoom-wrap").appendChild(canvas);
@@ -132,7 +235,7 @@
     var dragStartPos = { x: 0, y: 0 };
     var activePopup = null;
 
-    // Bug 2: alive flag — set false when container is removed by HTMX
+    // alive flag — set false when container is removed by HTMX
     var alive = true;
     container.addEventListener("htmx:beforeCleanupElement", function () { alive = false; });
 
@@ -193,6 +296,7 @@
         .then(function (data) {
           tokens = data || [];
           render();
+          if (onTokensLoaded) onTokensLoaded(tokens);
         });
     }
 
@@ -309,6 +413,7 @@
       var shapeCircleSelected = (!token.shape || token.shape === "circle") ? " selected" : "";
       var shapeSquareSelected = token.shape === "square" ? " selected" : "";
       var labelSizeVal = token.labelSize > 0 ? token.labelSize : 0;
+      var sightRadiusVal = token.sightRadius > 0 ? token.sightRadius : 0;
 
       popup.innerHTML =
         '<label>Name <input type="text" data-field="label" value="' + (token.label || "").replace(/"/g, "&quot;") + '" class="token-input-text"/></label>' +
@@ -316,6 +421,7 @@
         '<label>Size <input type="range" data-field="radius" min="5" max="300" value="' + (token.radius || 20) + '"/></label>' +
         '<label>Shape <select data-field="shape"><option value=""' + shapeCircleSelected + '>Circle</option><option value="square"' + shapeSquareSelected + '>Square</option></select></label>' +
         '<label>Label px <input type="range" data-field="labelSize" min="0" max="60" value="' + labelSizeVal + '"/> <span class="token-popup-hint">(0=auto)</span></label>' +
+        '<label>Sight Radius <input type="range" data-field="sightRadius" min="0" max="2000" value="' + sightRadiusVal + '"/> <span class="token-popup-hint">(0=off)</span></label>' +
         '<label><input type="checkbox" data-field="visible"' + (token.visible ? " checked" : "") + '/> Visible</label>' +
         '<label><input type="checkbox" data-field="moveable"' + (token.moveable ? " checked" : "") + '/> Moveable</label>' +
         '<div class="token-popup-actions">' +
@@ -332,6 +438,7 @@
         body.set("radius", popup.querySelector('[data-field="radius"]').value);
         body.set("shape", popup.querySelector('[data-field="shape"]').value);
         body.set("labelSize", popup.querySelector('[data-field="labelSize"]').value);
+        body.set("sightRadius", popup.querySelector('[data-field="sightRadius"]').value);
         body.set("visible", popup.querySelector('[data-field="visible"]').checked ? "true" : "false");
         body.set("moveable", popup.querySelector('[data-field="moveable"]').checked ? "true" : "false");
         fetch("/dm/maps/" + mapId + "/tokens/" + token.id, {
@@ -371,7 +478,7 @@
       activePopup = popup;
     }
 
-    // Bug 2: Guard SSE and resize listeners with alive check
+    // Guard SSE and resize listeners with alive check
     document.body.addEventListener("sse:tokenUpdate", function () {
       if (!alive) return;
       loadTokens();
@@ -388,12 +495,418 @@
     return { refresh: loadTokens, resize: resize, setMode: setMode };
   }
 
+  // --- Wall Layer (DM only) — polygon drawing ---
+  function createWallLayer(container, mapImg, mapId, isSpaceDownFn) {
+    var zoomWrap = container.querySelector(".zoom-wrap");
+    var canvas = document.createElement("canvas");
+    canvas.className = "wall-canvas";
+    var cursorCanvas = zoomWrap.querySelector(".cursor-canvas");
+    if (cursorCanvas) {
+      zoomWrap.insertBefore(canvas, cursorCanvas);
+    } else {
+      zoomWrap.appendChild(canvas);
+    }
+    var ctx = canvas.getContext("2d");
+
+    var walls = [];          // committed polygons from server
+    var currentPoly = [];   // vertices of the polygon being drawn
+    var mousePos = null;
+    var alive = true;
+    var SNAP_DIST = 12;      // px in canvas space to snap/close polygon
+    var dragState = null;       // {wall, idx} while dragging a vertex
+    var dragMoved = false;      // true once mouse moved during a drag
+    var suppressNextClick = false; // set in mouseup after any vertex drag to block click
+    var contextMenu = null;    // floating context menu div
+
+    container.addEventListener("htmx:beforeCleanupElement", function () { alive = false; });
+
+    function resize() {
+      canvas.width = mapImg.naturalWidth;
+      canvas.height = mapImg.naturalHeight;
+      canvas.style.width = mapImg.clientWidth + "px";
+      canvas.style.height = mapImg.clientHeight + "px";
+      render();
+    }
+
+    function coords(e) {
+      var rect = canvas.getBoundingClientRect();
+      return {
+        x: (e.clientX - rect.left) * (canvas.width / rect.width),
+        y: (e.clientY - rect.top) * (canvas.height / rect.height),
+      };
+    }
+
+    function dist2(a, b) {
+      var dx = a.x - b.x, dy = a.y - b.y;
+      return dx * dx + dy * dy;
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.setLineDash([]);
+
+      // Draw committed polygon walls
+      walls.forEach(function (w) {
+        if (!w.points || w.points.length < 2) return;
+        ctx.beginPath();
+        ctx.moveTo(w.points[0].x, w.points[0].y);
+        for (var i = 1; i < w.points.length; i++) {
+          ctx.lineTo(w.points[i].x, w.points[i].y);
+        }
+        ctx.closePath();
+        ctx.fillStyle = "rgba(255, 140, 0, 0.12)";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255, 140, 0, 0.9)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        // Vertex dots
+        ctx.fillStyle = "rgba(255, 140, 0, 0.9)";
+        w.points.forEach(function (p) {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      });
+
+      // Draw in-progress polygon
+      if (currentPoly.length > 0) {
+        // Edges so far
+        ctx.beginPath();
+        ctx.moveTo(currentPoly[0].x, currentPoly[0].y);
+        for (var i = 1; i < currentPoly.length; i++) {
+          ctx.lineTo(currentPoly[i].x, currentPoly[i].y);
+        }
+        ctx.strokeStyle = "rgba(255, 200, 0, 0.9)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([]);
+        ctx.stroke();
+
+        // Dashed preview to mouse
+        if (mousePos) {
+          ctx.setLineDash([6, 4]);
+          ctx.beginPath();
+          ctx.moveTo(currentPoly[currentPoly.length - 1].x, currentPoly[currentPoly.length - 1].y);
+          ctx.lineTo(mousePos.x, mousePos.y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+        // Vertex dots
+        ctx.fillStyle = "rgba(255, 200, 0, 0.9)";
+        currentPoly.forEach(function (p, idx) {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, idx === 0 ? 6 : 4, 0, Math.PI * 2);
+          ctx.fill();
+        });
+
+        // Highlight first vertex when close enough to close
+        if (mousePos && currentPoly.length >= 2 && dist2(mousePos, currentPoly[0]) < SNAP_DIST * SNAP_DIST) {
+          ctx.beginPath();
+          ctx.arc(currentPoly[0].x, currentPoly[0].y, 8, 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      }
+    }
+
+    function closePoly() {
+      if (currentPoly.length < 3) return;
+      var pts = currentPoly.map(function (p) { return { x: p.x, y: p.y }; });
+      currentPoly = [];
+      mousePos = null;
+      fetch("/dm/maps/" + mapId + "/walls", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ points: pts }),
+      }).then(function () { loadWalls(); });
+    }
+
+    function loadWalls() {
+      fetch("/maps/" + mapId + "/walls")
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          walls = data || [];
+          render();
+        });
+    }
+
+    function setActive(active) {
+      canvas.style.pointerEvents = active ? "auto" : "none";
+      if (!active) {
+        currentPoly = [];
+        mousePos = null;
+        render();
+      }
+    }
+
+    function findVertexHit(pos, radius) {
+      for (var wi = 0; wi < walls.length; wi++) {
+        var w = walls[wi];
+        if (!w.points) continue;
+        for (var vi = 0; vi < w.points.length; vi++) {
+          if (dist2(pos, w.points[vi]) <= radius * radius) {
+            return { wall: w, idx: vi };
+          }
+        }
+      }
+      return null;
+    }
+
+    function findWallNearEdge(pos, threshold) {
+      var hitWall = null;
+      var hitDist = Infinity;
+      walls.forEach(function (w) {
+        if (!w.points || w.points.length < 2) return;
+        for (var i = 0; i < w.points.length; i++) {
+          var seg = {
+            x1: w.points[i].x, y1: w.points[i].y,
+            x2: w.points[(i + 1) % w.points.length].x,
+            y2: w.points[(i + 1) % w.points.length].y,
+          };
+          var d = distToSegment(pos, seg);
+          if (d < threshold && d < hitDist) {
+            hitDist = d;
+            hitWall = w;
+          }
+        }
+      });
+      return hitWall;
+    }
+
+    function showWallContextMenu(clientX, clientY, wallId) {
+      hideWallContextMenu();
+      var menu = document.createElement("div");
+      menu.style.cssText = "position:fixed;z-index:9999;background:#1a1a1a;border:1px solid #555;border-radius:4px;padding:4px 0;";
+      menu.style.left = clientX + "px";
+      menu.style.top = clientY + "px";
+      var btn = document.createElement("button");
+      btn.textContent = "Delete wall";
+      btn.style.cssText = "display:block;width:100%;padding:6px 14px;background:none;border:none;color:#f55;cursor:pointer;text-align:left;font-size:13px;white-space:nowrap;";
+      btn.addEventListener("mouseenter", function () { btn.style.background = "#2a2a2a"; });
+      btn.addEventListener("mouseleave", function () { btn.style.background = "none"; });
+      btn.addEventListener("click", function () {
+        hideWallContextMenu();
+        fetch("/dm/maps/" + mapId + "/walls/" + wallId, { method: "DELETE" })
+          .then(function () { loadWalls(); });
+      });
+      menu.appendChild(btn);
+      document.body.appendChild(menu);
+      contextMenu = menu;
+      setTimeout(function () {
+        document.addEventListener("click", hideWallContextMenu, { once: true });
+      }, 0);
+    }
+
+    function hideWallContextMenu() {
+      if (contextMenu) {
+        contextMenu.remove();
+        contextMenu = null;
+      }
+    }
+
+    canvas.addEventListener("contextmenu", function (e) {
+      e.preventDefault();
+      if (currentPoly.length > 0) {
+        currentPoly = [];
+        mousePos = null;
+        render();
+      }
+      var pos = coords(e);
+      var hitWall = findWallNearEdge(pos, 10);
+      if (hitWall) {
+        showWallContextMenu(e.clientX, e.clientY, hitWall.id);
+      }
+    });
+
+    canvas.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0) return;
+      if (isSpaceDownFn && isSpaceDownFn()) return;
+      if (currentPoly.length > 0) return;
+      var pos = coords(e);
+      var hit = findVertexHit(pos, 8);
+      if (hit) {
+        dragState = hit;
+        dragMoved = false;
+        canvas.style.cursor = "grabbing";
+        canvas.setPointerCapture(e.pointerId);
+      }
+    });
+
+    canvas.addEventListener("pointermove", function (e) {
+      if (dragState) {
+        var pos = coords(e);
+        dragState.wall.points[dragState.idx] = pos;
+        dragMoved = true;
+        render();
+      } else {
+        mousePos = coords(e);
+        var hit = findVertexHit(mousePos, 8);
+        canvas.style.cursor = hit ? "grab" : "crosshair";
+        render();
+      }
+    });
+
+    canvas.addEventListener("pointerup", function (e) {
+      if (!alive) return;
+      if (dragState) {
+        suppressNextClick = true;
+        if (dragMoved) {
+          var wall = dragState.wall;
+          fetch("/dm/maps/" + mapId + "/walls/" + wall.id, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ points: wall.points }),
+          }).then(function () { loadWalls(); });
+        }
+        dragState = null;
+        dragMoved = false;
+        canvas.style.cursor = "crosshair";
+      }
+    });
+
+    canvas.addEventListener("click", function (e) {
+      if (isSpaceDownFn && isSpaceDownFn()) return;
+      if (suppressNextClick) {
+        suppressNextClick = false;
+        return;
+      }
+      var pos = coords(e);
+      if (currentPoly.length === 0) {
+        // Start a new polygon
+        currentPoly = [pos];
+      } else {
+        // Close polygon if clicking near first vertex
+        if (currentPoly.length >= 2 && dist2(pos, currentPoly[0]) < SNAP_DIST * SNAP_DIST) {
+          closePoly();
+        } else {
+          currentPoly.push(pos);
+        }
+      }
+      render();
+    });
+
+    canvas.addEventListener("dblclick", function (e) {
+      if (currentPoly.length >= 3) {
+        // Remove the extra point added by the preceding click event
+        currentPoly.pop();
+        closePoly();
+      }
+    });
+
+    document.addEventListener("keydown", function (e) {
+      if (!alive) return;
+      if (e.key === "Escape" && currentPoly.length > 0) {
+        currentPoly = [];
+        mousePos = null;
+        render();
+      }
+      if ((e.key === "Enter") && currentPoly.length >= 3) {
+        closePoly();
+      }
+    });
+
+    document.body.addEventListener("sse:wallUpdate", function () {
+      if (!alive) return;
+      loadWalls();
+    });
+
+    if (mapImg.complete) requestAnimationFrame(resize);
+    else mapImg.addEventListener("load", resize);
+    loadWalls();
+
+    return { setActive: setActive, resize: resize, refresh: loadWalls };
+  }
+
+  // --- Dynamic Lighting Layer (Player only) ---
+  function createDynamicLightingLayer(container, mapImg, mapId) {
+    var zoomWrap = container.querySelector(".zoom-wrap");
+    var canvas = document.createElement("canvas");
+    canvas.className = "lighting-canvas";
+    zoomWrap.appendChild(canvas);
+    var ctx = canvas.getContext("2d");
+
+    var walls = [];
+    var tokens = [];
+    var enabled = false;
+    var alive = true;
+    container.addEventListener("htmx:beforeCleanupElement", function () { alive = false; });
+
+    function resize() {
+      canvas.width = mapImg.naturalWidth;
+      canvas.height = mapImg.naturalHeight;
+      canvas.style.width = mapImg.clientWidth + "px";
+      canvas.style.height = mapImg.clientHeight + "px";
+      render();
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (!enabled) return;
+
+      var lightingTokens = tokens.filter(function (t) {
+        return t.visible && t.sightRadius > 0;
+      });
+
+      // Fill black overlay
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = "rgba(0,0,0,1)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      if (lightingTokens.length === 0) return;
+
+      // Cut out visibility polygon for each token with sight radius
+      ctx.globalCompositeOperation = "destination-out";
+      lightingTokens.forEach(function (t) {
+        var poly = computeVisibilityPolygon(t.x, t.y, t.sightRadius, walls);
+        if (poly.length < 3) return;
+        ctx.beginPath();
+        ctx.moveTo(poly[0].x, poly[0].y);
+        for (var i = 1; i < poly.length; i++) {
+          ctx.lineTo(poly[i].x, poly[i].y);
+        }
+        ctx.closePath();
+        ctx.fill();
+      });
+
+      ctx.globalCompositeOperation = "source-over";
+    }
+
+    function loadWalls(id) {
+      fetch("/maps/" + (id || mapId) + "/walls")
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          walls = data || [];
+          render();
+        });
+    }
+
+    function loadSettings(id) {
+      fetch("/maps/" + (id || mapId) + "/settings")
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          enabled = data.dynamicLighting || false;
+          render();
+        });
+    }
+
+    function setTokens(newTokens) {
+      tokens = newTokens || [];
+      render();
+    }
+
+    if (mapImg.complete) requestAnimationFrame(resize);
+    else mapImg.addEventListener("load", resize);
+
+    return { resize: resize, render: render, setTokens: setTokens, loadWalls: loadWalls, loadSettings: loadSettings };
+  }
+
   // --- DM Fog Canvas ---
   function initDMCanvas(container, mapId) {
     var mapImg = container.querySelector(".map-image");
     if (!mapImg) return;
 
-    // Bug 2: Remove any existing fog/token canvases left over from a previous init
+    // Remove any existing canvases left over from a previous init
     var zoomWrap = container.querySelector(".zoom-wrap");
     var oldFog = zoomWrap.querySelector(".fog-canvas");
     if (oldFog) oldFog.remove();
@@ -401,6 +914,8 @@
     if (oldToken) oldToken.remove();
     var oldCursor = zoomWrap.querySelector(".cursor-canvas");
     if (oldCursor) oldCursor.remove();
+    var oldWall = zoomWrap.querySelector(".wall-canvas");
+    if (oldWall) oldWall.remove();
 
     var canvas = document.createElement("canvas");
     canvas.className = "fog-canvas";
@@ -419,11 +934,10 @@
     var drawing = false;
     var rectStart = null;
     var fogSnapshot = null;
-    // Bug 1: track last brush position for interpolation
     var lastBrushPos = null;
     var lastMousePos = null;
 
-    // Bug 2: alive flag — set false when container is cleaned up by HTMX
+    // alive flag — set false when container is cleaned up by HTMX
     var alive = true;
     container.addEventListener("htmx:beforeCleanupElement", function () { alive = false; });
 
@@ -436,6 +950,7 @@
       cursorCanvas.height = mapImg.naturalHeight;
       cursorCanvas.style.width = mapImg.clientWidth + "px";
       cursorCanvas.style.height = mapImg.clientHeight + "px";
+      if (wallCtrl) wallCtrl.resize();
       loadFog();
     }
 
@@ -460,7 +975,6 @@
       cursorCtx.clearRect(0, 0, cursorCanvas.width, cursorCanvas.height);
       lastCursorX = -1; lastCursorY = -1;
     }
-
 
     var saveTimeout;
     function saveFog(immediate) {
@@ -491,7 +1005,7 @@
         ctx.drawImage(img, 0, 0);
       };
       img.onerror = function () {
-        // Bug 4A: No progress file exists — fill black and flush save immediately
+        // No progress file exists — fill black and flush save immediately
         ctx.fillStyle = "rgba(0, 0, 0, 1)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         saveFog(true);
@@ -530,7 +1044,6 @@
     var zoomCtrl = createZoomController(container.querySelector(".canvas-wrap"));
     var canvasWrapEl = container.querySelector(".canvas-wrap");
 
-    // Immediately update cursor when Space is pressed/released (don't wait for mousemove)
     document.addEventListener("keydown", function (e) {
       if (e.code === "Space" && !e.repeat
           && document.activeElement.tagName !== "INPUT"
@@ -558,7 +1071,6 @@
       drawing = true;
       var pos = canvasCoords(e);
       if (shape === "brush") {
-        // Bug 1: initialize lastBrushPos on mousedown
         lastBrushPos = pos;
         drawBrush(pos.x, pos.y);
       } else {
@@ -583,7 +1095,6 @@
       }
       if (!drawing) return;
       if (shape === "brush") {
-        // Bug 1: interpolate between lastBrushPos and pos to fill gaps on fast movement
         if (lastBrushPos) {
           var dx = pos.x - lastBrushPos.x;
           var dy = pos.y - lastBrushPos.y;
@@ -633,9 +1144,13 @@
     // Init token layer on top of fog
     var tokenCtrl = createTokenLayer(container, mapImg, mapId, true, zoomCtrl.isSpaceDown);
 
+    // Init wall layer (inserted before cursor-canvas)
+    var wallCtrl = createWallLayer(container, mapImg, mapId, zoomCtrl.isSpaceDown);
+
     // --- Toolbar event handling ---
     var fogTools = container.querySelector(".fog-tools");
     var tokenTools = container.querySelector(".token-tools");
+    var wallTools = container.querySelector(".wall-tools");
 
     container.addEventListener("click", function (e) {
       // Mode toggle
@@ -651,6 +1166,8 @@
         if (mode !== "fog") canvasWrapEl.style.cursor = "";
         if (fogTools) fogTools.style.display = mode === "fog" ? "" : "none";
         if (tokenTools) tokenTools.style.display = mode === "tokens" ? "" : "none";
+        if (wallTools) wallTools.style.display = mode === "walls" ? "" : "none";
+        wallCtrl.setActive(mode === "walls");
         return;
       }
 
@@ -676,7 +1193,7 @@
           canvasWrapEl.style.cursor = "crosshair";
         }
       }
-      // Bug 4B: Flush any pending debounced save before pushing to players
+      // Flush pending debounced save before pushing to players
       if (e.target.closest("[data-fog-push]")) {
         clearTimeout(saveTimeout);
         canvas.toBlob(function (blob) {
@@ -698,6 +1215,16 @@
       }
     });
 
+    // Dynamic lighting toggle
+    var dlToggle = container.querySelector("[data-toggle-dynamic-lighting]");
+    if (dlToggle) {
+      dlToggle.addEventListener("change", function () {
+        var body = new URLSearchParams();
+        body.set("dynamicLighting", this.checked ? "true" : "false");
+        fetch("/dm/maps/" + mapId + "/settings", { method: "POST", body: body });
+      });
+    }
+
     var slider = container.querySelector("[data-fog-brush-size]");
     if (slider) {
       slider.addEventListener("input", function () {
@@ -707,7 +1234,7 @@
 
     if (mapImg.complete) requestAnimationFrame(resize);
     else mapImg.addEventListener("load", resize);
-    // Bug 2: guard resize listener with alive check
+    // Guard resize listener with alive check
     window.addEventListener("resize", function () {
       if (!alive) return;
       resize();
@@ -721,19 +1248,24 @@
     var mapImg = container.querySelector(".map-image");
     if (!mapImg) return;
 
-    // Bug 2: Remove any existing fog/token canvases left over from a previous init
+    // Remove any existing canvases left over from a previous init
     var zoomWrap = container.querySelector(".zoom-wrap");
     var oldFog = zoomWrap.querySelector(".fog-canvas");
     if (oldFog) oldFog.remove();
     var oldToken = zoomWrap.querySelector(".token-canvas");
     if (oldToken) oldToken.remove();
+    var oldLighting = zoomWrap.querySelector(".lighting-canvas");
+    if (oldLighting) oldLighting.remove();
+
+    // Create lighting layer first (z-index 0, below fog)
+    var lightingLayer = createDynamicLightingLayer(container, mapImg, mapId);
 
     var canvas = document.createElement("canvas");
     canvas.className = "fog-canvas";
     zoomWrap.appendChild(canvas);
     var ctx = canvas.getContext("2d");
 
-    // Bug 2: alive flag — set false when container is cleaned up by HTMX
+    // alive flag — set false when container is cleaned up by HTMX
     var alive = true;
     container.addEventListener("htmx:beforeCleanupElement", function () { alive = false; });
 
@@ -742,7 +1274,8 @@
       canvas.height = mapImg.naturalHeight;
       canvas.style.width = mapImg.clientWidth + "px";
       canvas.style.height = mapImg.clientHeight + "px";
-      // Bug 3: Pre-fill black before async fog load to prevent revealed flash
+      lightingLayer.resize();
+      // Pre-fill black before async fog load to prevent revealed flash
       ctx.fillStyle = "rgba(0,0,0,1)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       loadFog();
@@ -763,7 +1296,7 @@
 
     if (mapImg.complete) requestAnimationFrame(resize);
     else mapImg.addEventListener("load", resize);
-    // Bug 2: guard resize listener with alive check
+    // Guard resize listener with alive check
     window.addEventListener("resize", function () {
       if (!alive) return;
       resize();
@@ -772,12 +1305,25 @@
     // Zoom/pan (init first so isSpaceDown is available for token layer)
     var zoomCtrl = createZoomController(container.querySelector(".canvas-wrap"));
 
-    // Token layer on top (players can always interact with moveable tokens)
-    var tokenCtrl = createTokenLayer(container, mapImg, mapId, false, zoomCtrl.isSpaceDown);
+    // Token layer — pass setTokens as onTokensLoaded so lighting updates when tokens change
+    var tokenCtrl = createTokenLayer(container, mapImg, mapId, false, zoomCtrl.isSpaceDown, lightingLayer.setTokens);
+
+    // Load initial lighting state after first resize
+    if (mapImg.complete) {
+      lightingLayer.loadSettings(mapId);
+      lightingLayer.loadWalls(mapId);
+    } else {
+      mapImg.addEventListener("load", function () {
+        lightingLayer.loadSettings(mapId);
+        lightingLayer.loadWalls(mapId);
+      }, { once: true });
+    }
 
     return {
       refresh: loadFog,
       refreshTokens: tokenCtrl.refresh,
+      refreshWalls: function () { lightingLayer.loadWalls(mapId); },
+      refreshSettings: function () { lightingLayer.loadSettings(mapId); },
     };
   }
 
