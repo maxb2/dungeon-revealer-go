@@ -24,6 +24,20 @@ make build
 
 Then open `http://localhost:3000` in your browser. Players connect to the same address.
 
+### Docker
+
+A Docker image is published to the GitHub Container Registry on every release:
+
+```sh
+docker run -d \
+  -p 3000:3000 \
+  -v dungeon-data:/data \
+  -e DR_DM_PASSWORD=secretDM \
+  ghcr.io/maxb2/dungeon-revealer-go:latest
+```
+
+See all available tags on the [packages page](https://github.com/maxb2/dungeon-revealer-go/pkgs/container/dungeon-revealer-go).
+
 ## Configuration
 
 All options can be set via flags or environment variables:
