@@ -15,11 +15,8 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Install templ
-        run: go install github.com/a-h/templ/cmd/templ@latest
-
       - name: Generate templates
-        run: templ generate
+        run: go tool templ generate
 
       - name: Build
         run: CGO_ENABLED=0 go build ./...
