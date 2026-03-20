@@ -17,7 +17,10 @@ import (
 //go:embed static
 var staticFS embed.FS
 
+var version = "dev"
+
 func main() {
+	log.Printf("dungeon-revealer %s", version)
 	cfg := config.Parse()
 
 	db, err := store.New(cfg.DataDir)
