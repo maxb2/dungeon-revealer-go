@@ -187,33 +187,48 @@ func MapAreaImage(m *store.Map) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\"><div class=\"fog-toolbar\"><button data-dm-mode=\"fog\" class=\"active\">Fog</button> <button data-dm-mode=\"tokens\">Tokens</button> <span class=\"toolbar-sep\"></span> <span class=\"fog-tools\"><button data-fog-tool=\"reveal\" class=\"active\">Reveal</button> <button data-fog-tool=\"shroud\">Shroud</button> <span class=\"toolbar-sep\"></span> <button data-fog-shape=\"brush\" class=\"active\">Brush</button> <button data-fog-shape=\"rect\">Rectangle</button> <span class=\"toolbar-sep\"></span> <label>Size <input type=\"range\" data-fog-brush-size min=\"5\" max=\"200\" value=\"40\"></label></span> <span class=\"token-tools\" style=\"display:none\"><label>Name <input type=\"text\" data-token-label placeholder=\"unnamed\" class=\"token-input-text\"></label> <label>Color <input type=\"color\" data-token-color value=\"#e94560\"></label> <label>Size <input type=\"range\" data-token-radius min=\"5\" max=\"300\" value=\"20\"></label> <label><input type=\"checkbox\" data-token-visible> Visible</label> <label><input type=\"checkbox\" data-token-moveable checked> Moveable</label></span> <span class=\"toolbar-sep\"></span> <button data-fog-push class=\"push-btn\">Push to Players</button> <button data-fog-clear>Reset (Hide All)</button> <button data-fog-reveal-all>Reveal All</button></div><div class=\"canvas-wrap\"><div class=\"zoom-wrap\"><img src=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\"><div class=\"fog-toolbar\"><button data-dm-mode=\"fog\" class=\"active\">Fog</button> <button data-dm-mode=\"tokens\">Tokens</button> <button data-dm-mode=\"walls\">Walls</button> <span class=\"toolbar-sep\"></span> <span class=\"fog-tools\"><button data-fog-tool=\"reveal\" class=\"active\">Reveal</button> <button data-fog-tool=\"shroud\">Shroud</button> <span class=\"toolbar-sep\"></span> <button data-fog-shape=\"brush\" class=\"active\">Brush</button> <button data-fog-shape=\"rect\">Rectangle</button> <span class=\"toolbar-sep\"></span> <label>Size <input type=\"range\" data-fog-brush-size min=\"5\" max=\"200\" value=\"40\"></label></span> <span class=\"token-tools\" style=\"display:none\"><label>Name <input type=\"text\" data-token-label placeholder=\"unnamed\" class=\"token-input-text\"></label> <label>Color <input type=\"color\" data-token-color value=\"#e94560\"></label> <label>Size <input type=\"range\" data-token-radius min=\"5\" max=\"300\" value=\"20\"></label> <label><input type=\"checkbox\" data-token-visible> Visible</label> <label><input type=\"checkbox\" data-token-moveable checked> Moveable</label></span> <span class=\"wall-tools\" style=\"display:none\"><span class=\"toolbar-hint\">Click to add vertices. Click first vertex or double-click to close. Esc to cancel. Click a wall to delete.</span></span> <span class=\"toolbar-sep\"></span> <button data-fog-push class=\"push-btn\">Push to Players</button> <button data-fog-clear>Reset (Hide All)</button> <button data-fog-reveal-all>Reveal All</button> <span class=\"toolbar-sep\"></span> <label class=\"toolbar-label\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if m.DynamicLighting {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<input type=\"checkbox\" data-toggle-dynamic-lighting checked> Dynamic Lighting")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		} else {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<input type=\"checkbox\" data-toggle-dynamic-lighting> Dynamic Lighting")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</label></div><div class=\"canvas-wrap\"><div class=\"zoom-wrap\"><img src=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/dm/maps/%s/image", m.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/maps.templ`, Line: 83, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/maps.templ`, Line: 95, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\" alt=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\" alt=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(m.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/maps.templ`, Line: 83, Col: 69}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/maps.templ`, Line: 95, Col: 69}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\" class=\"map-image\"></div></div><script>\n\t\t\t(function() {\n\t\t\t\tvar container = document.getElementById('dm-map-view');\n\t\t\t\tDungeonRevealer.initDMCanvas(container, container.dataset.mapId);\n\t\t\t})();\n\t\t</script></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "\" class=\"map-image\"></div></div><script>\n\t\t\t(function() {\n\t\t\t\tvar container = document.getElementById('dm-map-view');\n\t\t\t\tDungeonRevealer.initDMCanvas(container, container.dataset.mapId);\n\t\t\t})();\n\t\t</script></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -242,7 +257,7 @@ func PlayerMapEmpty() templ.Component {
 			templ_7745c5c3_Var12 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<div id=\"player-map-view\"><p class=\"muted\">Waiting for the DM to select a map...</p></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<div id=\"player-map-view\"><p class=\"muted\">Waiting for the DM to select a map...</p></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -271,46 +286,46 @@ func PlayerMapImage(m *store.Map) templ.Component {
 			templ_7745c5c3_Var13 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<div id=\"player-map-view\" class=\"canvas-container\" data-map-id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<div id=\"player-map-view\" class=\"canvas-container\" data-map-id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(m.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/maps.templ`, Line: 102, Col: 70}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/maps.templ`, Line: 114, Col: 70}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "\"><div class=\"canvas-wrap\"><div class=\"zoom-wrap\"><img src=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "\"><div class=\"canvas-wrap\"><div class=\"zoom-wrap\"><img src=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/maps/%s/image", m.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/maps.templ`, Line: 105, Col: 50}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/maps.templ`, Line: 117, Col: 50}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "\" alt=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "\" alt=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(m.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/maps.templ`, Line: 105, Col: 66}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/maps.templ`, Line: 117, Col: 66}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\" class=\"map-image\"></div></div><script>\n\t\t\t(function() {\n\t\t\t\tvar container = document.getElementById('player-map-view');\n\t\t\t\tvar ctrl = DungeonRevealer.initPlayerCanvas(container, container.dataset.mapId);\n\t\t\t\tdocument.body.addEventListener('sse:fogUpdate', function() {\n\t\t\t\t\tif (ctrl) ctrl.refresh();\n\t\t\t\t});\n\t\t\t})();\n\t\t</script></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "\" class=\"map-image\"></div></div><script>\n\t\t\t(function() {\n\t\t\t\tvar container = document.getElementById('player-map-view');\n\t\t\t\tvar ctrl = DungeonRevealer.initPlayerCanvas(container, container.dataset.mapId);\n\t\t\t\tdocument.body.addEventListener('sse:fogUpdate', function() {\n\t\t\t\t\tif (ctrl) ctrl.refresh();\n\t\t\t\t});\n\t\t\t\tdocument.body.addEventListener('sse:wallUpdate', function() {\n\t\t\t\t\tif (ctrl) ctrl.refreshWalls();\n\t\t\t\t});\n\t\t\t\tdocument.body.addEventListener('sse:mapSettingsUpdate', function() {\n\t\t\t\t\tif (ctrl) ctrl.refreshSettings();\n\t\t\t\t});\n\t\t\t})();\n\t\t</script></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
