@@ -24,10 +24,20 @@ jobs:
       - name: Build all platforms
         run: make build-all
 
+      - name: Check stable release
+        id: stable
+        run: |
+          if [[ "${{ github.ref_name }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "is_stable=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_stable=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          prerelease: ${{ steps.stable.outputs.is_stable != 'true' }}
           append_body: |
 
             ## Docker
