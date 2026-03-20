@@ -24,7 +24,10 @@ jobs:
         run: CGO_ENABLED=0 go build ./...
 
       - name: Test
-        run: CGO_ENABLED=0 go test -coverprofile=coverage.out -covermode=atomic ./...
+        run: |
+          CGO_ENABLED=0 go test -coverprofile=coverage.out -covermode=atomic ./...
+          grep -v '^github.com/matt/dungeon-revealer-go/templates/' coverage.out > coverage.filtered.out
+          mv coverage.filtered.out coverage.out
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
