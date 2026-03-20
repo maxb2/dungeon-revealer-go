@@ -81,7 +81,7 @@ jobs:
             type=raw,value=latest,enable=${{ steps.stable.outputs.is_stable == 'true' }}
 
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
