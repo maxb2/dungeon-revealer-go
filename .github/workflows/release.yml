@@ -24,10 +24,20 @@ jobs:
       - name: Build all platforms
         run: make build-all
 
+      - name: Check stable release
+        id: stable
+        run: |
+          if [[ "${{ github.ref_name }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "is_stable=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_stable=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          prerelease: ${{ steps.stable.outputs.is_stable != 'true' }}
           append_body: |
 
             ## Docker
@@ -51,15 +61,27 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check stable release
+        id: stable
+        run: |
+          TAG="${{ github.ref_name }}"
+          if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "is_stable=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_stable=false" >> $GITHUB_OUTPUT
+          fi
+          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest
+            type=semver,pattern={{version}},enable=${{ steps.stable.outputs.is_stable == 'true' }}
+            type=raw,value=${{ steps.stable.outputs.version }},enable=${{ steps.stable.outputs.is_stable != 'true' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ steps.stable.outputs.is_stable == 'true' }}
+            type=raw,value=latest,enable=${{ steps.stable.outputs.is_stable == 'true' }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
