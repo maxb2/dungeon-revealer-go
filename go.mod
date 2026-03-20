@@ -3,7 +3,7 @@ module github.com/matt/dungeon-revealer-go
 go 1.25.0
 
 require (
-	github.com/a-h/templ v0.3.977
+	github.com/a-h/templ v0.3.1001
 	github.com/gorilla/sessions v1.4.0
 	github.com/rs/xid v1.6.0
 	github.com/yuin/goldmark v1.7.17
