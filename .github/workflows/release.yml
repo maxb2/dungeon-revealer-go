@@ -18,9 +18,6 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Install templ
-        run: go install github.com/a-h/templ/cmd/templ@latest
-
       - name: Build all platforms
         run: make build-all
 

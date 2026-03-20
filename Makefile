@@ -4,7 +4,7 @@ VERSION := $(shell git describe --tags --always --dirty)
 LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 
 generate:
-	templ generate
+	go tool templ generate
 
 build: generate
 	CGO_ENABLED=0 go build $(LDFLAGS) -o dungeon-revealer .

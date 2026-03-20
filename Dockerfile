@@ -2,14 +2,12 @@ FROM golang:1.25-alpine AS builder
 RUN apk add --no-cache git
 WORKDIR /app
 
-RUN go install github.com/a-h/templ/cmd/templ@latest
-
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
 
-RUN templ generate && \
+RUN go tool templ generate && \
     CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o dungeon-revealer .
 
 FROM alpine:3
