@@ -3,3 +3,5 @@ dist/
 dungeon-revealer
 dungeon-revealer-*
 *.exe
+
+coverage.out
