@@ -40,7 +40,7 @@ Three roles: `admin` > `player` > `unauthenticated`. Stored in a gorilla/session
 
 ### Templates
 
-`.templ` files in `templates/` generate `_templ.go` files. Always run `go tool templ generate` before building. The generated files are not checked into git.
+`.templ` files in `templates/` generate `_templ.go` files. Always run `go tool templ generate` before building. The generated files are checked into git.
 
 ### Static Assets
 

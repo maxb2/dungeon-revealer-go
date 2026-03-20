@@ -15,8 +15,10 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Generate templates
-        run: go tool templ generate
+      - name: Check generated templates are up to date
+        run: |
+          go tool templ generate
+          git diff --exit-code -- '*.go'
 
       - name: Build
         run: CGO_ENABLED=0 go build ./...
