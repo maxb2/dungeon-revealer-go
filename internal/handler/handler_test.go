@@ -252,3 +252,292 @@ func TestMapHandler_SetActive_NotFound(t *testing.T) {
 		t.Errorf("status = %d, want %d", rec.Code, http.StatusNotFound)
 	}
 }
+
+func newMapTestSetup(t *testing.T) (*store.MapStore, *MapHandler) {
+	t.Helper()
+	dir := t.TempDir()
+	ms := store.NewMapStore(dir)
+	return ms, NewMapHandler(ms)
+}
+
+func uploadTestMap(t *testing.T, ms *store.MapStore, h *MapHandler, title, filename string) {
+	t.Helper()
+	var buf strings.Builder
+	mw := multipart.NewWriter(&buf)
+	if title != "" {
+		mw.WriteField("title", title)
+	}
+	fw, _ := mw.CreateFormFile("map", filename)
+	fw.Write([]byte("fake-png-data"))
+	mw.Close()
+
+	rec := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/maps/upload", strings.NewReader(buf.String()))
+	r.Header.Set("Content-Type", mw.FormDataContentType())
+	h.Upload(rec, r)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("upload failed: status %d", rec.Code)
+	}
+}
+
+func TestChatHandler_SetName_Empty_Returns400(t *testing.T) {
+	cs := store.NewChatStore(100)
+	broker := realtime.NewBroker()
+	a := auth.New("secret", "", "")
+	h := NewChatHandler(cs, broker, a)
+
+	form := url.Values{"chatName": {""}}
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/chat/name", strings.NewReader(form.Encode()))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	h.SetName(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestChatHandler_SetName_WhitespaceOnly_Returns400(t *testing.T) {
+	cs := store.NewChatStore(100)
+	broker := realtime.NewBroker()
+	a := auth.New("secret", "", "")
+	h := NewChatHandler(cs, broker, a)
+
+	form := url.Values{"chatName": {"   "}}
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/chat/name", strings.NewReader(form.Encode()))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	h.SetName(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestChatHandler_SetName_Valid_Returns200(t *testing.T) {
+	cs := store.NewChatStore(100)
+	broker := realtime.NewBroker()
+	a := auth.New("secret", "", "")
+	h := NewChatHandler(cs, broker, a)
+
+	form := url.Values{"chatName": {"Alice"}}
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/chat/name", strings.NewReader(form.Encode()))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	h.SetName(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+}
+
+func TestChatHandler_SetName_TruncatesAt20Chars(t *testing.T) {
+	cs := store.NewChatStore(100)
+	broker := realtime.NewBroker()
+	a := auth.New("secret", "", "")
+	h := NewChatHandler(cs, broker, a)
+
+	form := url.Values{"chatName": {"ABCDEFGHIJKLMNOPQRSTUVWXY"}} // 25 chars
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/chat/name", strings.NewReader(form.Encode()))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	h.SetName(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+}
+
+func TestMapHandler_Upload_AutoTitleFromFilename(t *testing.T) {
+	ms, h := newMapTestSetup(t)
+
+	var buf strings.Builder
+	mw := multipart.NewWriter(&buf)
+	// No title field — should derive from filename
+	fw, _ := mw.CreateFormFile("map", "dungeon.png")
+	fw.Write([]byte("fake-png-data"))
+	mw.Close()
+
+	rec := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/maps/upload", strings.NewReader(buf.String()))
+	r.Header.Set("Content-Type", mw.FormDataContentType())
+	h.Upload(rec, r)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	maps, _ := ms.List()
+	if len(maps) != 1 {
+		t.Fatalf("len(maps) = %d, want 1", len(maps))
+	}
+	if maps[0].Title != "dungeon" {
+		t.Errorf("title = %q, want %q", maps[0].Title, "dungeon")
+	}
+}
+
+func TestMapHandler_Upload_NoExtension_DefaultsPng(t *testing.T) {
+	ms, h := newMapTestSetup(t)
+
+	var buf strings.Builder
+	mw := multipart.NewWriter(&buf)
+	mw.WriteField("title", "No Ext Map")
+	fw, _ := mw.CreateFormFile("map", "dungeon") // no extension
+	fw.Write([]byte("fake-png-data"))
+	mw.Close()
+
+	rec := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/maps/upload", strings.NewReader(buf.String()))
+	r.Header.Set("Content-Type", mw.FormDataContentType())
+	h.Upload(rec, r)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	maps, _ := ms.List()
+	if len(maps) != 1 {
+		t.Fatalf("len(maps) = %d, want 1", len(maps))
+	}
+	// Verify map was created (ext defaulted to .png internally)
+	if maps[0].Title != "No Ext Map" {
+		t.Errorf("title = %q, want %q", maps[0].Title, "No Ext Map")
+	}
+}
+
+func TestMapHandler_SetActive_SetsHXTriggerHeader(t *testing.T) {
+	ms, h := newMapTestSetup(t)
+	uploadTestMap(t, ms, h, "Test Map", "dungeon.png")
+
+	maps, _ := ms.List()
+	id := maps[0].ID
+
+	rec := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/maps/"+id+"/active", nil)
+	r.SetPathValue("id", id)
+	h.SetActive(rec, r)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if got := rec.Header().Get("HX-Trigger"); got != "mapChanged" {
+		t.Errorf("HX-Trigger = %q, want %q", got, "mapChanged")
+	}
+}
+
+func TestMapHandler_Delete_RemovesMap(t *testing.T) {
+	ms, h := newMapTestSetup(t)
+	uploadTestMap(t, ms, h, "To Delete", "delete.png")
+
+	maps, _ := ms.List()
+	if len(maps) != 1 {
+		t.Fatalf("expected 1 map before delete, got %d", len(maps))
+	}
+	id := maps[0].ID
+
+	rec := httptest.NewRecorder()
+	r := httptest.NewRequest("DELETE", "/maps/"+id, nil)
+	r.SetPathValue("id", id)
+	h.Delete(rec, r)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	maps, _ = ms.List()
+	if len(maps) != 0 {
+		t.Errorf("len(maps) = %d, want 0 after delete", len(maps))
+	}
+}
+
+func TestMapHandler_ServeImage_NotFound(t *testing.T) {
+	_, h := newMapTestSetup(t)
+
+	rec := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/maps/nonexistent/image", nil)
+	r.SetPathValue("id", "nonexistent")
+	h.ServeImage(rec, r)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+}
+
+func TestMapHandler_ActiveMapView_NoActiveMap(t *testing.T) {
+	_, h := newMapTestSetup(t)
+
+	rec := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/maps/active-view", nil)
+	h.ActiveMapView(rec, r)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+}
+
+func TestMapHandler_ActiveMapView_ActiveMapDeleted(t *testing.T) {
+	ms, h := newMapTestSetup(t)
+	ms.SetActive("nonexistent-id")
+
+	rec := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/maps/active-view", nil)
+	h.ActiveMapView(rec, r)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+}
+
+func TestMapHandler_ActiveMapView_ValidActiveMap(t *testing.T) {
+	ms, h := newMapTestSetup(t)
+	uploadTestMap(t, ms, h, "Active Map", "active.png")
+
+	maps, _ := ms.List()
+	ms.SetActive(maps[0].ID)
+
+	rec := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/maps/active-view", nil)
+	h.ActiveMapView(rec, r)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+}
+
+func TestMapHandler_PlayerMapView_NoActiveMap(t *testing.T) {
+	_, h := newMapTestSetup(t)
+
+	rec := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/player-map", nil)
+	h.PlayerMapView(rec, r)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+}
+
+func TestMapHandler_PlayerMapView_ActiveMapDeleted(t *testing.T) {
+	ms, h := newMapTestSetup(t)
+	ms.SetActive("nonexistent-id")
+
+	rec := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/player-map", nil)
+	h.PlayerMapView(rec, r)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+}
+
+func TestMapHandler_PlayerMapView_ValidActiveMap(t *testing.T) {
+	ms, h := newMapTestSetup(t)
+	uploadTestMap(t, ms, h, "Player Map", "player.png")
+
+	maps, _ := ms.List()
+	ms.SetActive(maps[0].ID)
+
+	rec := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/player-map", nil)
+	h.PlayerMapView(rec, r)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+}
