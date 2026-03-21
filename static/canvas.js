@@ -413,7 +413,7 @@
       var shapeCircleSelected = (!token.shape || token.shape === "circle") ? " selected" : "";
       var shapeSquareSelected = token.shape === "square" ? " selected" : "";
       var labelSizeVal = token.labelSize > 0 ? token.labelSize : 0;
-      var sightRadiusVal = token.sightRadius > 0 ? token.sightRadius : 0;
+      var sightRadiusVal = token.sightRadius > 0 ? token.sightRadius : parseFloat(container.dataset.gridSize || "50") * 5;
 
       popup.innerHTML =
         '<label>Name <input type="text" data-field="label" value="' + (token.label || "").replace(/"/g, "&quot;") + '" class="token-input-text"/></label>' +
@@ -916,6 +916,14 @@
     if (oldCursor) oldCursor.remove();
     var oldWall = zoomWrap.querySelector(".wall-canvas");
     if (oldWall) oldWall.remove();
+    var oldGrid = zoomWrap.querySelector(".grid-canvas");
+    if (oldGrid) oldGrid.remove();
+
+    // Grid canvas sits below the fog layer
+    var gridCanvas = document.createElement("canvas");
+    gridCanvas.className = "grid-canvas";
+    zoomWrap.appendChild(gridCanvas);
+    var gridCtx = gridCanvas.getContext("2d");
 
     var canvas = document.createElement("canvas");
     canvas.className = "fog-canvas";
@@ -930,7 +938,11 @@
 
     var tool = "reveal";
     var shape = "brush";
-    var brushSize = 40;
+    var gridSize = parseFloat(container.dataset.gridSize || "50");
+    var gridOffsetX = parseFloat(container.dataset.gridOffsetX || "0");
+    var gridOffsetY = parseFloat(container.dataset.gridOffsetY || "0");
+    var gridEnabled = container.dataset.gridEnabled === "true";
+    var brushSize = gridSize;
     var drawing = false;
     var rectStart = null;
     var fogSnapshot = null;
@@ -941,6 +953,23 @@
     var alive = true;
     container.addEventListener("htmx:beforeCleanupElement", function () { alive = false; });
 
+    function renderGrid() {
+      gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
+      if (!gridEnabled || gridSize <= 0) return;
+      gridCtx.strokeStyle = "rgba(255,255,255,0.25)";
+      gridCtx.lineWidth = 1;
+      gridCtx.beginPath();
+      var startX = ((gridOffsetX % gridSize) + gridSize) % gridSize;
+      var startY = ((gridOffsetY % gridSize) + gridSize) % gridSize;
+      for (var x = startX; x <= gridCanvas.width; x += gridSize) {
+        gridCtx.moveTo(x, 0); gridCtx.lineTo(x, gridCanvas.height);
+      }
+      for (var y = startY; y <= gridCanvas.height; y += gridSize) {
+        gridCtx.moveTo(0, y); gridCtx.lineTo(gridCanvas.width, y);
+      }
+      gridCtx.stroke();
+    }
+
     function resize() {
       canvas.width = mapImg.naturalWidth;
       canvas.height = mapImg.naturalHeight;
@@ -950,6 +979,11 @@
       cursorCanvas.height = mapImg.naturalHeight;
       cursorCanvas.style.width = mapImg.clientWidth + "px";
       cursorCanvas.style.height = mapImg.clientHeight + "px";
+      gridCanvas.width = mapImg.naturalWidth;
+      gridCanvas.height = mapImg.naturalHeight;
+      gridCanvas.style.width = mapImg.clientWidth + "px";
+      gridCanvas.style.height = mapImg.clientHeight + "px";
+      renderGrid();
       if (wallCtrl) wallCtrl.resize();
       loadFog();
     }
@@ -1221,6 +1255,10 @@
       dlToggle.addEventListener("change", function () {
         var body = new URLSearchParams();
         body.set("dynamicLighting", this.checked ? "true" : "false");
+        body.set("gridSize", gridSize);
+        body.set("gridOffsetX", gridOffsetX);
+        body.set("gridOffsetY", gridOffsetY);
+        body.set("gridEnabled", gridEnabled);
         fetch("/dm/maps/" + mapId + "/settings", { method: "POST", body: body });
       });
     }
@@ -1229,6 +1267,58 @@
     if (slider) {
       slider.addEventListener("input", function () {
         brushSize = parseInt(this.value, 10);
+      });
+    }
+
+    var gridSaveTimeout;
+    function saveGridSettings() {
+      clearTimeout(gridSaveTimeout);
+      gridSaveTimeout = setTimeout(function () {
+        var body = new URLSearchParams();
+        body.set("gridSize", gridSize);
+        body.set("gridOffsetX", gridOffsetX);
+        body.set("gridOffsetY", gridOffsetY);
+        body.set("gridEnabled", gridEnabled);
+        var dlEl = container.querySelector("[data-toggle-dynamic-lighting]");
+        body.set("dynamicLighting", dlEl && dlEl.checked ? "true" : "false");
+        fetch("/dm/maps/" + mapId + "/settings", { method: "POST", body: body });
+      }, 300);
+    }
+
+    var gridEnabledEl = container.querySelector("[data-grid-enabled]");
+    if (gridEnabledEl) {
+      gridEnabledEl.addEventListener("change", function () {
+        gridEnabled = this.checked;
+        renderGrid();
+        saveGridSettings();
+      });
+    }
+    var gridSizeEl = container.querySelector("[data-grid-size]");
+    if (gridSizeEl) {
+      gridSizeEl.addEventListener("input", function () {
+        gridSize = parseFloat(this.value) || 50;
+        renderGrid();
+        saveGridSettings();
+        var brushSlider = container.querySelector("[data-fog-brush-size]");
+        if (brushSlider) { brushSlider.value = gridSize; brushSize = gridSize; }
+        var tokenSlider = container.querySelector("[data-token-radius]");
+        if (tokenSlider) { tokenSlider.value = gridSize / 2; }
+      });
+    }
+    var gridOffsetXEl = container.querySelector("[data-grid-offset-x]");
+    if (gridOffsetXEl) {
+      gridOffsetXEl.addEventListener("input", function () {
+        gridOffsetX = parseFloat(this.value) || 0;
+        renderGrid();
+        saveGridSettings();
+      });
+    }
+    var gridOffsetYEl = container.querySelector("[data-grid-offset-y]");
+    if (gridOffsetYEl) {
+      gridOffsetYEl.addEventListener("input", function () {
+        gridOffsetY = parseFloat(this.value) || 0;
+        renderGrid();
+        saveGridSettings();
       });
     }
 
@@ -1256,9 +1346,51 @@
     if (oldToken) oldToken.remove();
     var oldLighting = zoomWrap.querySelector(".lighting-canvas");
     if (oldLighting) oldLighting.remove();
+    var oldGrid = zoomWrap.querySelector(".grid-canvas");
+    if (oldGrid) oldGrid.remove();
 
-    // Create lighting layer first (z-index 0, below fog)
+    // Create lighting layer first (below fog)
     var lightingLayer = createDynamicLightingLayer(container, mapImg, mapId);
+
+    // Grid canvas sits above lighting but below fog
+    var gridCanvas = document.createElement("canvas");
+    gridCanvas.className = "grid-canvas";
+    zoomWrap.appendChild(gridCanvas);
+    var gridCtx = gridCanvas.getContext("2d");
+
+    var gridSize = 50;
+    var gridOffsetX = 0;
+    var gridOffsetY = 0;
+    var gridEnabled = false;
+
+    function renderGrid() {
+      gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
+      if (!gridEnabled || gridSize <= 0) return;
+      gridCtx.strokeStyle = "rgba(255,255,255,0.25)";
+      gridCtx.lineWidth = 1;
+      gridCtx.beginPath();
+      var startX = ((gridOffsetX % gridSize) + gridSize) % gridSize;
+      var startY = ((gridOffsetY % gridSize) + gridSize) % gridSize;
+      for (var x = startX; x <= gridCanvas.width; x += gridSize) {
+        gridCtx.moveTo(x, 0); gridCtx.lineTo(x, gridCanvas.height);
+      }
+      for (var y = startY; y <= gridCanvas.height; y += gridSize) {
+        gridCtx.moveTo(0, y); gridCtx.lineTo(gridCanvas.width, y);
+      }
+      gridCtx.stroke();
+    }
+
+    function loadGridSettings() {
+      fetch("/maps/" + mapId + "/settings")
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          gridSize = data.gridSize || 50;
+          gridOffsetX = data.gridOffsetX || 0;
+          gridOffsetY = data.gridOffsetY || 0;
+          gridEnabled = data.gridEnabled || false;
+          renderGrid();
+        });
+    }
 
     var canvas = document.createElement("canvas");
     canvas.className = "fog-canvas";
@@ -1274,6 +1406,11 @@
       canvas.height = mapImg.naturalHeight;
       canvas.style.width = mapImg.clientWidth + "px";
       canvas.style.height = mapImg.clientHeight + "px";
+      gridCanvas.width = mapImg.naturalWidth;
+      gridCanvas.height = mapImg.naturalHeight;
+      gridCanvas.style.width = mapImg.clientWidth + "px";
+      gridCanvas.style.height = mapImg.clientHeight + "px";
+      renderGrid();
       lightingLayer.resize();
       // Pre-fill black before async fog load to prevent revealed flash
       ctx.fillStyle = "rgba(0,0,0,1)";
@@ -1308,14 +1445,16 @@
     // Token layer — pass setTokens as onTokensLoaded so lighting updates when tokens change
     var tokenCtrl = createTokenLayer(container, mapImg, mapId, false, zoomCtrl.isSpaceDown, lightingLayer.setTokens);
 
-    // Load initial lighting state after first resize
+    // Load initial state after first resize
     if (mapImg.complete) {
       lightingLayer.loadSettings(mapId);
       lightingLayer.loadWalls(mapId);
+      loadGridSettings();
     } else {
       mapImg.addEventListener("load", function () {
         lightingLayer.loadSettings(mapId);
         lightingLayer.loadWalls(mapId);
+        loadGridSettings();
       }, { once: true });
     }
 
@@ -1323,7 +1462,10 @@
       refresh: loadFog,
       refreshTokens: tokenCtrl.refresh,
       refreshWalls: function () { lightingLayer.loadWalls(mapId); },
-      refreshSettings: function () { lightingLayer.loadSettings(mapId); },
+      refreshSettings: function () {
+        lightingLayer.loadSettings(mapId);
+        loadGridSettings();
+      },
     };
   }
 

@@ -39,13 +39,24 @@ type Wall struct {
 }
 
 type Map struct {
-	ID             string    `json:"id"`
-	Title          string    `json:"title"`
-	Ext            string    `json:"ext"`
-	Tokens         []Token   `json:"tokens,omitempty"`
-	Walls          []Wall    `json:"walls,omitempty"`
-	DynamicLighting bool     `json:"dynamicLighting,omitempty"`
-	CreatedAt      time.Time `json:"createdAt"`
+	ID              string    `json:"id"`
+	Title           string    `json:"title"`
+	Ext             string    `json:"ext"`
+	Tokens          []Token   `json:"tokens,omitempty"`
+	Walls           []Wall    `json:"walls,omitempty"`
+	DynamicLighting bool      `json:"dynamicLighting,omitempty"`
+	GridSize        float64   `json:"gridSize,omitempty"`
+	GridOffsetX     float64   `json:"gridOffsetX,omitempty"`
+	GridOffsetY     float64   `json:"gridOffsetY,omitempty"`
+	GridEnabled     bool      `json:"gridEnabled,omitempty"`
+	CreatedAt       time.Time `json:"createdAt"`
+}
+
+func (m *Map) GridSizeOrDefault() float64 {
+	if m.GridSize > 0 {
+		return m.GridSize
+	}
+	return 50.0
 }
 
 type MapStore struct {
@@ -283,6 +294,18 @@ func (s *MapStore) GetWalls(mapID string) ([]Wall, error) {
 		return nil, err
 	}
 	return m.Walls, nil
+}
+
+func (s *MapStore) UpdateGridSettings(mapID string, gridSize, offsetX, offsetY float64, enabled bool) error {
+	m, err := s.readMeta(mapID)
+	if err != nil {
+		return err
+	}
+	m.GridSize = gridSize
+	m.GridOffsetX = offsetX
+	m.GridOffsetY = offsetY
+	m.GridEnabled = enabled
+	return s.writeMeta(m)
 }
 
 func (s *MapStore) SetDynamicLighting(mapID string, enabled bool) error {

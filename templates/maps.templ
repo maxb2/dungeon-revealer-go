@@ -52,7 +52,11 @@ templ MapAreaEmpty() {
 }
 
 templ MapAreaImage(m *store.Map) {
-	<div id="dm-map-view" class="canvas-container" data-map-id={ m.ID }>
+	<div id="dm-map-view" class="canvas-container" data-map-id={ m.ID }
+		data-grid-size={ fmt.Sprintf("%g", m.GridSizeOrDefault()) }
+		data-grid-offset-x={ fmt.Sprintf("%g", m.GridOffsetX) }
+		data-grid-offset-y={ fmt.Sprintf("%g", m.GridOffsetY) }
+		data-grid-enabled={ fmt.Sprintf("%t", m.GridEnabled) }>
 		<div class="fog-toolbar">
 			<button data-dm-mode="fog" class="active">Fog</button>
 			<button data-dm-mode="tokens">Tokens</button>
@@ -65,12 +69,12 @@ templ MapAreaImage(m *store.Map) {
 				<button data-fog-shape="brush" class="active">Brush</button>
 				<button data-fog-shape="rect">Rectangle</button>
 				<span class="toolbar-sep"></span>
-				<label>Size <input type="range" data-fog-brush-size min="5" max="200" value="40"/></label>
+				<label>Size <input type="range" data-fog-brush-size min="5" max="200" value={ fmt.Sprintf("%g", m.GridSizeOrDefault()) }/></label>
 			</span>
 			<span class="token-tools" style="display:none">
 				<label>Name <input type="text" data-token-label placeholder="unnamed" class="token-input-text"/></label>
 				<label>Color <input type="color" data-token-color value="#e94560"/></label>
-				<label>Size <input type="range" data-token-radius min="5" max="300" value="20"/></label>
+				<label>Size <input type="range" data-token-radius min="5" max="300" value={ fmt.Sprintf("%g", m.GridSizeOrDefault()/2) }/></label>
 				<label><input type="checkbox" data-token-visible/> Visible</label>
 				<label><input type="checkbox" data-token-moveable checked/> Moveable</label>
 			</span>
@@ -89,6 +93,20 @@ templ MapAreaImage(m *store.Map) {
 					<input type="checkbox" data-toggle-dynamic-lighting/> Dynamic Lighting
 				}
 			</label>
+			<span class="toolbar-sep"></span>
+			<label class="toolbar-label">
+				if m.GridEnabled {
+					<input type="checkbox" data-grid-enabled checked/> Grid
+				} else {
+					<input type="checkbox" data-grid-enabled/> Grid
+				}
+			</label>
+			<label>Size <input type="number" data-grid-size min="1" max="2000" step="0.5"
+				value={ fmt.Sprintf("%g", m.GridSizeOrDefault()) } style="width:70px"/></label>
+			<label>Offset X <input type="number" data-grid-offset-x min="0" max="2000" step="0.5"
+				value={ fmt.Sprintf("%g", m.GridOffsetX) } style="width:60px"/></label>
+			<label>Offset Y <input type="number" data-grid-offset-y min="0" max="2000" step="0.5"
+				value={ fmt.Sprintf("%g", m.GridOffsetY) } style="width:60px"/></label>
 		</div>
 		<div class="canvas-wrap">
 			<div class="zoom-wrap">
