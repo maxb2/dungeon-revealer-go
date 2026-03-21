@@ -43,13 +43,13 @@ jobs:
           tag_name: ${{ inputs.tag || github.ref_name }}
           generate_release_notes: true
           prerelease: ${{ steps.stable.outputs.is_stable != 'true' }}
-          append_body: |
-
+          body: |
             ## Docker
 
             ```sh
             docker pull ghcr.io/${{ github.repository }}:${{ inputs.tag || github.ref_name }}
             ```
+
           files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
