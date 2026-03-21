@@ -1,20 +1,24 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 
+	"github.com/matt/dungeon-revealer-go/internal/realtime"
 	"github.com/matt/dungeon-revealer-go/internal/store"
 	"github.com/matt/dungeon-revealer-go/templates"
 )
 
 type MapHandler struct {
-	maps *store.MapStore
+	maps   *store.MapStore
+	broker *realtime.Broker
 }
 
-func NewMapHandler(maps *store.MapStore) *MapHandler {
-	return &MapHandler{maps: maps}
+func NewMapHandler(maps *store.MapStore, broker *realtime.Broker) *MapHandler {
+	return &MapHandler{maps: maps, broker: broker}
 }
 
 func (h *MapHandler) Upload(w http.ResponseWriter, r *http.Request) {
@@ -102,6 +106,41 @@ func (h *MapHandler) ActiveMapView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	templates.MapAreaImage(m).Render(r.Context(), w)
+}
+
+func (h *MapHandler) UpdateGrid(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form", http.StatusBadRequest)
+		return
+	}
+	parseFloat := func(key string) float64 {
+		v, _ := strconv.ParseFloat(r.FormValue(key), 64)
+		return v
+	}
+	gridSize := parseFloat("gridSize")
+	offsetX := parseFloat("gridOffsetX")
+	offsetY := parseFloat("gridOffsetY")
+	gridEnabled := r.FormValue("gridEnabled") == "true"
+
+	if err := h.maps.UpdateGrid(id, gridSize, offsetX, offsetY, gridEnabled); err != nil {
+		http.Error(w, "Failed to update grid", http.StatusInternalServerError)
+		return
+	}
+
+	type gridEvent struct {
+		MapID       string  `json:"mapId"`
+		GridSize    float64 `json:"gridSize"`
+		GridOffsetX float64 `json:"gridOffsetX"`
+		GridOffsetY float64 `json:"gridOffsetY"`
+		GridEnabled bool    `json:"gridEnabled"`
+	}
+	if h.broker != nil {
+		data, _ := json.Marshal(gridEvent{MapID: id, GridSize: gridSize, GridOffsetX: offsetX, GridOffsetY: offsetY, GridEnabled: gridEnabled})
+		h.broker.Publish(realtime.Event{Name: "gridUpdate", Data: string(data)})
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *MapHandler) PlayerMapView(w http.ResponseWriter, r *http.Request) {

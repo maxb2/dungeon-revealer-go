@@ -28,11 +28,22 @@ type Token struct {
 }
 
 type Map struct {
-	ID        string    `json:"id"`
-	Title     string    `json:"title"`
-	Ext       string    `json:"ext"`
-	Tokens    []Token   `json:"tokens,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID           string    `json:"id"`
+	Title        string    `json:"title"`
+	Ext          string    `json:"ext"`
+	Tokens       []Token   `json:"tokens,omitempty"`
+	CreatedAt    time.Time `json:"createdAt"`
+	GridSize     float64   `json:"gridSize,omitempty"`
+	GridOffsetX  float64   `json:"gridOffsetX,omitempty"`
+	GridOffsetY  float64   `json:"gridOffsetY,omitempty"`
+	GridEnabled  bool      `json:"gridEnabled,omitempty"`
+}
+
+func (m *Map) GridSizeOrDefault() float64 {
+	if m.GridSize > 0 {
+		return m.GridSize
+	}
+	return 50.0
 }
 
 type MapStore struct {
@@ -207,6 +218,18 @@ func (s *MapStore) GetTokens(mapID string) ([]Token, error) {
 		return nil, err
 	}
 	return m.Tokens, nil
+}
+
+func (s *MapStore) UpdateGrid(id string, gridSize, offsetX, offsetY float64, gridEnabled bool) error {
+	m, err := s.readMeta(id)
+	if err != nil {
+		return err
+	}
+	m.GridSize = gridSize
+	m.GridOffsetX = offsetX
+	m.GridOffsetY = offsetY
+	m.GridEnabled = gridEnabled
+	return s.writeMeta(m)
 }
 
 func (s *MapStore) GetVisibleTokens(mapID string) ([]Token, error) {

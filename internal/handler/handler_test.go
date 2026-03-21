@@ -194,7 +194,7 @@ func TestChatHandler_Send_DMAuthor(t *testing.T) {
 func TestMapHandler_Upload(t *testing.T) {
 	dir := t.TempDir()
 	ms := store.NewMapStore(dir)
-	h := NewMapHandler(ms)
+	h := NewMapHandler(ms, nil)
 
 	// Build multipart form
 	var buf strings.Builder
@@ -226,7 +226,7 @@ func TestMapHandler_Upload(t *testing.T) {
 func TestMapHandler_Upload_MissingFile(t *testing.T) {
 	dir := t.TempDir()
 	ms := store.NewMapStore(dir)
-	h := NewMapHandler(ms)
+	h := NewMapHandler(ms, nil)
 
 	rec := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/maps/upload", strings.NewReader(""))
@@ -241,7 +241,7 @@ func TestMapHandler_Upload_MissingFile(t *testing.T) {
 func TestMapHandler_SetActive_NotFound(t *testing.T) {
 	dir := t.TempDir()
 	ms := store.NewMapStore(dir)
-	h := NewMapHandler(ms)
+	h := NewMapHandler(ms, nil)
 
 	rec := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/maps/nonexistent/active", nil)
@@ -257,7 +257,7 @@ func newMapTestSetup(t *testing.T) (*store.MapStore, *MapHandler) {
 	t.Helper()
 	dir := t.TempDir()
 	ms := store.NewMapStore(dir)
-	return ms, NewMapHandler(ms)
+	return ms, NewMapHandler(ms, nil)
 }
 
 func uploadTestMap(t *testing.T, ms *store.MapStore, h *MapHandler, title, filename string) {
