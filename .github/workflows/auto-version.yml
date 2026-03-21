@@ -29,16 +29,19 @@ jobs:
           MINOR=$(echo "$LATEST" | sed 's/v//' | cut -d. -f2)
           PATCH=$(echo "$LATEST" | sed 's/v//' | cut -d. -f3)
 
-          # Check commit message for bump keywords
+          # Determine bump level from conventional commit message
           MSG=$(git log -1 --pretty=%B)
 
-          if echo "$MSG" | grep -qi '\[major\]'; then
+          # Major: breaking change (! after type, or BREAKING CHANGE in footer)
+          if echo "$MSG" | grep -qE '^[a-z]+(\(.+\))?!:' || echo "$MSG" | grep -q 'BREAKING CHANGE'; then
             MAJOR=$((MAJOR + 1))
             MINOR=0
             PATCH=0
-          elif echo "$MSG" | grep -qi '\[minor\]'; then
+          # Minor: feat
+          elif echo "$MSG" | grep -qE '^feat(\(.+\))?:'; then
             MINOR=$((MINOR + 1))
             PATCH=0
+          # Patch: everything else (fix, docs, chore, ci, refactor, etc.)
           else
             PATCH=$((PATCH + 1))
           fi

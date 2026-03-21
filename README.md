@@ -75,11 +75,11 @@ Cross-compiled binaries are output to `dist/`:
 
 ## Releases
 
-Every push to `main` automatically creates a new version tag and GitHub release. The version is bumped based on the commit message:
+Every push to `main` automatically creates a new version tag and GitHub release. The version bump is determined by [Conventional Commits](https://www.conventionalcommits.org/):
 
-- **Patch** (default): `v1.0.0` → `v1.0.1`
-- **Minor** — include `[minor]` in the commit message: `v1.0.1` → `v1.1.0`
-- **Major** — include `[major]` in the commit message: `v1.1.0` → `v2.0.0`
+- **Patch** — `fix:`, `docs:`, `chore:`, etc.: `v1.0.0` → `v1.0.1`
+- **Minor** — `feat:`: `v1.0.1` → `v1.1.0`
+- **Major** — `feat!:` or `BREAKING CHANGE` in the commit body: `v1.1.0` → `v2.0.0`
 
 Each release builds cross-platform binaries and publishes a Docker image to GHCR.
 
