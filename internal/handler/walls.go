@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"github.com/matt/dungeon-revealer-go/internal/realtime"
 	"github.com/matt/dungeon-revealer-go/internal/store"
@@ -104,6 +105,10 @@ func (h *WallHandler) GetSettings(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"dynamicLighting": m.DynamicLighting,
+		"gridSize":        m.GridSizeOrDefault(),
+		"gridOffsetX":     m.GridOffsetX,
+		"gridOffsetY":     m.GridOffsetY,
+		"gridEnabled":     m.GridEnabled,
 	})
 }
 
@@ -111,8 +116,16 @@ func (h *WallHandler) GetSettings(w http.ResponseWriter, r *http.Request) {
 func (h *WallHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 	mapID := r.PathValue("id")
 	dynamicLighting := r.FormValue("dynamicLighting") == "true"
+	gridEnabled := r.FormValue("gridEnabled") == "true"
+	gridSize, _ := strconv.ParseFloat(r.FormValue("gridSize"), 64)
+	gridOffsetX, _ := strconv.ParseFloat(r.FormValue("gridOffsetX"), 64)
+	gridOffsetY, _ := strconv.ParseFloat(r.FormValue("gridOffsetY"), 64)
 
 	if err := h.maps.SetDynamicLighting(mapID, dynamicLighting); err != nil {
+		http.Error(w, "Failed to update settings", http.StatusInternalServerError)
+		return
+	}
+	if err := h.maps.UpdateGridSettings(mapID, gridSize, gridOffsetX, gridOffsetY, gridEnabled); err != nil {
 		http.Error(w, "Failed to update settings", http.StatusInternalServerError)
 		return
 	}
