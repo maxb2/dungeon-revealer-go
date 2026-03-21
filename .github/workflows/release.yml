@@ -2,15 +2,78 @@ name: Release
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
 
 permissions:
   contents: write
   packages: write
 
 jobs:
-  release:
+  version:
     runs-on: ubuntu-latest
+    outputs:
+      new_tag: ${{ steps.version.outputs.tag }}
+      image_version: ${{ steps.version.outputs.image_version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine next version
+        id: version
+        run: |
+          # Check if the current commit already has a semver tag (manual tag)
+          EXISTING=$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)
+          if [ -n "$EXISTING" ]; then
+            echo "Using existing manual tag: $EXISTING"
+            echo "tag=$EXISTING" >> "$GITHUB_OUTPUT"
+            echo "image_version=$(echo "$EXISTING" | sed 's/^v//')" >> "$GITHUB_OUTPUT"
+            echo "skip_tag=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Get latest tag, default to v0.0.0 if none exists
+          LATEST=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)
+          if [ -z "$LATEST" ]; then
+            LATEST="v0.0.0"
+          fi
+
+          # Parse current version
+          MAJOR=$(echo "$LATEST" | sed 's/v//' | cut -d. -f1)
+          MINOR=$(echo "$LATEST" | sed 's/v//' | cut -d. -f2)
+          PATCH=$(echo "$LATEST" | sed 's/v//' | cut -d. -f3)
+
+          # Determine bump level from conventional commit message
+          MSG=$(git log -1 --pretty=%B)
+
+          # Major: breaking change (! after type, or BREAKING CHANGE in footer)
+          if echo "$MSG" | grep -qE '^[a-z]+(\(.+\))?!:' || echo "$MSG" | grep -q 'BREAKING CHANGE'; then
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+          # Minor: feat
+          elif echo "$MSG" | grep -qE '^feat(\(.+\))?:'; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          # Patch: everything else (fix, docs, chore, ci, refactor, etc.)
+          else
+            PATCH=$((PATCH + 1))
+          fi
+
+          TAG="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "image_version=${MAJOR}.${MINOR}.${PATCH}" >> "$GITHUB_OUTPUT"
+          echo "Next version: $TAG"
+
+      - name: Create and push tag
+        if: steps.version.outputs.skip_tag != 'true'
+        run: |
+          git tag ${{ steps.version.outputs.tag }}
+          git push origin ${{ steps.version.outputs.tag }}
+
+  build:
+    runs-on: ubuntu-latest
+    needs: version
     steps:
       - uses: actions/checkout@v4
 
@@ -27,13 +90,13 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.version.outputs.new_tag }}
           generate_release_notes: true
-          append_body: |
-
+          body: |
             ## Docker
 
             ```sh
-            docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+            docker pull ghcr.io/${{ github.repository }}:${{ needs.version.outputs.image_version }}
             ```
           files: dist/*
         env:
@@ -41,6 +104,7 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
+    needs: version
     steps:
       - uses: actions/checkout@v4
 
@@ -57,9 +121,12 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{version}},value=${{ needs.version.outputs.new_tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.version.outputs.new_tag }}
             type=raw,value=latest
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -68,3 +135,5 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
