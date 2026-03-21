@@ -33,7 +33,7 @@ jobs:
             ## Docker
 
             ```sh
-            docker pull ghcr.io/${{ github.repository }}:latest
+            docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}
             ```
           files: dist/*
         env:
