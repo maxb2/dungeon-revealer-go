@@ -17,7 +17,10 @@ import (
 //go:embed static
 var staticFS embed.FS
 
+var version = "dev"
+
 func main() {
+	log.Printf("dungeon-revealer %s", version)
 	cfg := config.Parse()
 
 	db, err := store.New(cfg.DataDir)
@@ -41,6 +44,7 @@ func main() {
 	notesHandler := handler.NewNotesHandler(db, broker)
 	media := store.NewMediaStore(db, cfg.DataDir)
 	mediaHandler := handler.NewMediaHandler(media)
+	wallHandler := handler.NewWallHandler(maps, broker)
 
 	mux := http.NewServeMux()
 
@@ -73,6 +77,8 @@ func main() {
 	mux.Handle("GET /media/{id}", a.RequireRole(auth.RolePlayer)(http.HandlerFunc(mediaHandler.Serve)))
 	mux.Handle("GET /maps/{id}/tokens", a.RequireRole(auth.RolePlayer)(http.HandlerFunc(tokenHandler.ListTokens)))
 	mux.Handle("PUT /maps/{id}/tokens/{tokenId}", a.RequireRole(auth.RolePlayer)(http.HandlerFunc(tokenHandler.UpdateToken)))
+	mux.Handle("GET /maps/{id}/walls", a.RequireRole(auth.RolePlayer)(http.HandlerFunc(wallHandler.ListWalls)))
+	mux.Handle("GET /maps/{id}/settings", a.RequireRole(auth.RolePlayer)(http.HandlerFunc(wallHandler.GetSettings)))
 
 	// DM view
 	mux.Handle("GET /dm", a.RequireRole(auth.RoleAdmin)(http.HandlerFunc(dmHandler.Dashboard)))
@@ -89,6 +95,10 @@ func main() {
 	mux.Handle("POST /dm/maps/{id}/tokens", a.RequireRole(auth.RoleAdmin)(http.HandlerFunc(tokenHandler.CreateToken)))
 	mux.Handle("PUT /dm/maps/{id}/tokens/{tokenId}", a.RequireRole(auth.RoleAdmin)(http.HandlerFunc(tokenHandler.UpdateToken)))
 	mux.Handle("DELETE /dm/maps/{id}/tokens/{tokenId}", a.RequireRole(auth.RoleAdmin)(http.HandlerFunc(tokenHandler.DeleteToken)))
+	mux.Handle("POST /dm/maps/{id}/walls", a.RequireRole(auth.RoleAdmin)(http.HandlerFunc(wallHandler.CreateWall)))
+	mux.Handle("DELETE /dm/maps/{id}/walls/{wallId}", a.RequireRole(auth.RoleAdmin)(http.HandlerFunc(wallHandler.DeleteWall)))
+	mux.Handle("PATCH /dm/maps/{id}/walls/{wallId}", a.RequireRole(auth.RoleAdmin)(http.HandlerFunc(wallHandler.UpdateWall)))
+	mux.Handle("POST /dm/maps/{id}/settings", a.RequireRole(auth.RoleAdmin)(http.HandlerFunc(wallHandler.UpdateSettings)))
 	mux.Handle("GET /dm/notes", a.RequireRole(auth.RoleAdmin)(http.HandlerFunc(notesHandler.List)))
 	mux.Handle("GET /dm/notes/search", a.RequireRole(auth.RoleAdmin)(http.HandlerFunc(notesHandler.Search)))
 	mux.Handle("GET /dm/notes/{id}", a.RequireRole(auth.RoleAdmin)(http.HandlerFunc(notesHandler.View)))

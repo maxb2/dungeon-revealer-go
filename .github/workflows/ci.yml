@@ -9,20 +9,29 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
-      - name: Install templ
-        run: go install github.com/a-h/templ/cmd/templ@latest
-
-      - name: Generate templates
-        run: templ generate
+      - name: Check generated templates are up to date
+        run: |
+          go tool templ generate
+          git diff --exit-code -- '*.go'
 
       - name: Build
         run: CGO_ENABLED=0 go build ./...
 
       - name: Test
-        run: CGO_ENABLED=0 go test ./...
+        run: |
+          CGO_ENABLED=0 go test -coverprofile=coverage.out -covermode=atomic ./...
+          grep -v '^github.com/matt/dungeon-revealer-go/templates/' coverage.out > coverage.filtered.out
+          mv coverage.filtered.out coverage.out
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.out
+          fail_ci_if_error: true

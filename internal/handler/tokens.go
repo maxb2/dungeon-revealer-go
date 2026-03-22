@@ -69,6 +69,10 @@ func (h *TokenHandler) CreateToken(w http.ResponseWriter, r *http.Request) {
 	if t.LabelSize < 0 {
 		t.LabelSize = 0
 	}
+	t.SightRadius, _ = strconv.ParseFloat(r.FormValue("sightRadius"), 64)
+	if t.SightRadius < 0 {
+		t.SightRadius = 0
+	}
 
 	token, err := h.maps.AddToken(mapID, t)
 	if err != nil {
@@ -151,6 +155,11 @@ func (h *TokenHandler) UpdateToken(w http.ResponseWriter, r *http.Request) {
 		if v := r.FormValue("labelSize"); v != "" {
 			if ls, err := strconv.ParseFloat(v, 64); err == nil && ls >= 0 {
 				existing.LabelSize = ls
+			}
+		}
+		if v := r.FormValue("sightRadius"); v != "" {
+			if sr, err := strconv.ParseFloat(v, 64); err == nil && sr >= 0 {
+				existing.SightRadius = sr
 			}
 		}
 	}

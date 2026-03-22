@@ -12,7 +12,7 @@ make clean          # Remove binaries and dist/
 
 CGO_ENABLED=0 go test ./...   # Run all tests
 CGO_ENABLED=0 go test ./internal/dice/  # Run a single package's tests
-~/go/bin/templ generate        # Regenerate templ files (templ is not on PATH)
+go tool templ generate         # Regenerate templ files (pinned via go.mod tool directive)
 ```
 
 `CGO_ENABLED=0` is required for all go build/test commands (pure-Go SQLite via zombiezen).
@@ -40,7 +40,7 @@ Three roles: `admin` > `player` > `unauthenticated`. Stored in a gorilla/session
 
 ### Templates
 
-`.templ` files in `templates/` generate `_templ.go` files. Always run `templ generate` before building. The generated files are checked into git.
+`.templ` files in `templates/` generate `_templ.go` files. Always run `go tool templ generate` before building. The generated files are checked into git.
 
 ### Static Assets
 

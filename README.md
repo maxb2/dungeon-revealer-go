@@ -52,12 +52,9 @@ All options can be set via flags or environment variables:
 
 ## Building from Source
 
-Requires Go 1.25+ and [templ](https://templ.guide). If you don't have Go installed, follow the official instructions at [go.dev/doc/install](https://go.dev/doc/install).
+Requires Go 1.25+. If you don't have Go installed, follow the official instructions at [go.dev/doc/install](https://go.dev/doc/install).
 
 ```sh
-# Install templ
-go install github.com/a-h/templ/cmd/templ@latest
-
 # Build for current platform
 make build
 
