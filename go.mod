@@ -6,7 +6,7 @@ require (
 	github.com/a-h/templ v0.3.1001
 	github.com/gorilla/sessions v1.4.0
 	github.com/rs/xid v1.6.0
-	github.com/yuin/goldmark v1.7.17
+	github.com/yuin/goldmark v1.8.2
 	zombiezen.com/go/sqlite v1.4.2
 )
 
